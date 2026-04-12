@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateTotal, getGradeInfo } from "@/lib/grades";
+import { calculateTotalFromScoreMap, getGradeInfo } from "@/lib/grades";
 import { isValidSemester } from "@/lib/semesters";
+import { normalizeScoresForCourse } from "@/lib/course-assessments";
+import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
+
+const courseInclude = {
+  select: {
+    id: true,
+    name: true,
+    code: true,
+    creditHours: true,
+    department: { select: { id: true, name: true, code: true } },
+    assessments: {
+      orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }],
+      select: {
+        id: true,
+        name: true,
+        key: true,
+        weightPercent: true,
+        sortOrder: true,
+      },
+    },
+  },
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,15 +58,7 @@ export async function GET(req: NextRequest) {
             departmentId: true,
           },
         },
-        course: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            creditHours: true,
-            department: { select: { id: true, name: true, code: true } },
-          },
-        },
+        course: courseInclude,
       },
       orderBy: [{ year: "desc" }, { semester: "asc" }, { student: { firstName: "asc" } }],
     });
@@ -64,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { studentId, courseId, semester, year, midExam, finalExam, assessment, project, assignment, presentation } = body;
+    const { studentId, courseId, semester, year, scores: scoresBody } = body;
 
     const parsedStudentId = Number(studentId);
     const parsedCourseId = Number(courseId);
@@ -78,27 +92,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid semester. Use a semester from the Semesters settings." }, { status: 400 });
     }
 
-    // Validate marks are within range
-    const marks = {
-      midExam: Number(midExam || 0),
-      finalExam: Number(finalExam || 0),
-      assessment: Number(assessment || 0),
-      project: Number(project || 0),
-      assignment: Number(assignment || 0),
-      presentation: Number(presentation || 0),
-    };
+    await seedDefaultAssessmentsIfEmpty(parsedCourseId);
 
-    if (marks.midExam < 0 || marks.midExam > 20) return NextResponse.json({ error: "Mid Exam must be 0-20" }, { status: 400 });
-    if (marks.finalExam < 0 || marks.finalExam > 40) return NextResponse.json({ error: "Final Exam must be 0-40" }, { status: 400 });
-    if (marks.assessment < 0 || marks.assessment > 10) return NextResponse.json({ error: "Assessment must be 0-10" }, { status: 400 });
-    if (marks.project < 0 || marks.project > 10) return NextResponse.json({ error: "Project must be 0-10" }, { status: 400 });
-    if (marks.assignment < 0 || marks.assignment > 10) return NextResponse.json({ error: "Assignment must be 0-10" }, { status: 400 });
-    if (marks.presentation < 0 || marks.presentation > 10) return NextResponse.json({ error: "Presentation must be 0-10" }, { status: 400 });
+    const assessments = await prisma.courseAssessment.findMany({
+      where: { courseId: parsedCourseId },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    });
 
-    const totalMarks = calculateTotal(marks);
+    const rawScores =
+      scoresBody && typeof scoresBody === "object" && !Array.isArray(scoresBody)
+        ? (scoresBody as Record<string, number>)
+        : {};
+
+    const { scores, error } = normalizeScoresForCourse(rawScores, assessments);
+    if (error) {
+      return NextResponse.json({ error }, { status: 400 });
+    }
+
+    const totalMarks = calculateTotalFromScoreMap(scores);
     const { grade, gradePoints } = getGradeInfo(totalMarks);
 
-    // Check for duplicate
     const existing = await prisma.examRecord.findUnique({
       where: {
         studentId_courseId_semester_year: {
@@ -119,7 +132,7 @@ export async function POST(req: NextRequest) {
         courseId: parsedCourseId,
         semester,
         year: parsedYear,
-        ...marks,
+        scores,
         totalMarks,
         grade,
         gradePoints,
@@ -128,9 +141,7 @@ export async function POST(req: NextRequest) {
         student: {
           select: { id: true, studentId: true, firstName: true, lastName: true, imageUrl: true },
         },
-        course: {
-          select: { id: true, name: true, code: true, creditHours: true },
-        },
+        course: courseInclude,
       },
     });
 

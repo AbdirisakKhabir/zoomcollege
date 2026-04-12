@@ -16,8 +16,9 @@ const paymentReportLinks = [
   { name: "Bank Balances", path: "/reports/bank-balances", icon: DollarLineIcon, description: "Current balance of each bank account" },
   { name: "Bank Transactions", path: "/reports/bank-transactions", icon: ListIcon, description: "Deposits, withdrawals, and transfers by bank and date" },
   { name: "Transaction History", path: "/reports/transaction-history", icon: ListIcon, description: "Unified log of all financial transactions (auto-created)" },
-  { name: "Treasury Summary", path: "/reports/treasury", icon: DollarLineIcon, description: "Overview of bank balance, receivables, revenue, and withdrawals" },
-  { name: "Daily Revenue", path: "/reports/daily-revenue", icon: DollarLineIcon, description: "Revenue collected per day within a date range" },
+  { name: "Treasury Summary", path: "/reports/treasury", icon: DollarLineIcon, description: "Bank balances, receivables, year revenue (tuition + monthly fees), and withdrawals" },
+  { name: "Daily Revenue", path: "/reports/daily-revenue", icon: DollarLineIcon, description: "Semester tuition and monthly fee revenue per day in a date range" },
+  { name: "Income Statement", path: "/reports/income-statement", icon: DollarLineIcon, description: "Annual revenue (tuition and monthly fees), expenses, and net income" },
 ];
 
 export default function PaymentReportsIndexPage() {

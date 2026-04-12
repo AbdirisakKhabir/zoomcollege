@@ -24,7 +24,14 @@ export default function TreasuryReportPage() {
     totalBankBalance: number;
     totalReceivables: number;
     year: number;
-    revenue: { totalPayments: number; paymentCount: number };
+    revenue: {
+      totalPayments: number;
+      paymentCount: number;
+      semesterTuition: number;
+      monthlyFee: number;
+      semesterTuitionCount: number;
+      monthlyPaymentCount: number;
+    };
     withdrawals: { total: number; count: number };
     generatedAt: string;
   } | null>(null);
@@ -68,7 +75,9 @@ export default function TreasuryReportPage() {
       ["Total Bank Balance", `$${data.totalBankBalance.toLocaleString()}`],
       ["Total Receivables (Student Balance)", `$${data.totalReceivables.toLocaleString()}`],
       ["Revenue (Payments This Year)", `$${data.revenue.totalPayments.toLocaleString()}`],
-      ["Payment Count", data.revenue.paymentCount],
+      ["Payment Records (Total)", data.revenue.paymentCount],
+      ["Semester Tuition", `$${data.revenue.semesterTuition.toLocaleString()}`],
+      ["Monthly Fee", `$${data.revenue.monthlyFee.toLocaleString()}`],
       ["Withdrawals This Year", `$${data.withdrawals.total.toLocaleString()}`],
       ["Withdrawal Count", data.withdrawals.count],
     ];
@@ -136,7 +145,10 @@ export default function TreasuryReportPage() {
                 <p className="mt-1 text-2xl font-bold text-brand-600 dark:text-brand-400">
                   ${data.revenue.totalPayments.toLocaleString()}
                 </p>
-                <p className="text-xs text-gray-500">{data.revenue.paymentCount} payments</p>
+                <p className="text-xs text-gray-500">{data.revenue.paymentCount} payment records</p>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Tuition ${data.revenue.semesterTuition.toLocaleString()} · Monthly ${data.revenue.monthlyFee.toLocaleString()}
+                </p>
               </div>
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/50">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Withdrawals ({data.year})</p>

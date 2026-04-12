@@ -21,7 +21,14 @@ const CURRENT_YEAR = new Date().getFullYear();
 export default function IncomeStatementReportPage() {
   const [data, setData] = useState<{
     year: number;
-    revenue: { tuition: number; paymentCount: number };
+    revenue: {
+      tuition: number;
+      monthlyFee: number;
+      total: number;
+      tuitionPaymentCount: number;
+      monthlyPaymentCount: number;
+      paymentCount: number;
+    };
     expenses: {
       approvedExpenses: number;
       approvedCount: number;
@@ -71,8 +78,12 @@ export default function IncomeStatementReportPage() {
       ["Generated", data.generatedAt],
       ["", ""],
       ["REVENUE", ""],
-      ["Tuition Revenue", `$${data.revenue.tuition.toLocaleString()}`],
-      ["Payment Count", data.revenue.paymentCount],
+      ["Semester Tuition", `$${data.revenue.tuition.toLocaleString()}`],
+      ["Tuition Payment Records", data.revenue.tuitionPaymentCount],
+      ["Monthly Fee Revenue", `$${data.revenue.monthlyFee.toLocaleString()}`],
+      ["Monthly Payment Records", data.revenue.monthlyPaymentCount],
+      ["Total Revenue", `$${data.revenue.total.toLocaleString()}`],
+      ["Total Payment Records", data.revenue.paymentCount],
       ["", ""],
       ["EXPENSES", ""],
       ["Approved Expenses", `$${data.expenses.approvedExpenses.toLocaleString()}`],
@@ -144,14 +155,28 @@ export default function IncomeStatementReportPage() {
                 Revenue
               </h3>
               <div className="rounded-xl border border-green-200 bg-green-50/50 p-6 dark:border-green-900/50 dark:bg-green-900/10">
-                <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Tuition Revenue</p>
-                    <p className="mt-1 text-3xl font-bold text-green-600 dark:text-green-400">
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Semester tuition</p>
+                    <p className="mt-1 text-xl font-bold text-green-700 dark:text-green-400">
                       ${data.revenue.tuition.toLocaleString()}
                     </p>
-                    <p className="mt-1 text-xs text-gray-500">{data.revenue.paymentCount} payments received</p>
+                    <p className="mt-0.5 text-xs text-gray-500">{data.revenue.tuitionPaymentCount} records</p>
                   </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Monthly fee</p>
+                    <p className="mt-1 text-xl font-bold text-green-700 dark:text-green-400">
+                      ${data.revenue.monthlyFee.toLocaleString()}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">{data.revenue.monthlyPaymentCount} records</p>
+                  </div>
+                </div>
+                <div className="mt-5 border-t border-green-200 pt-4 dark:border-green-900/50">
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total revenue</p>
+                  <p className="mt-1 text-3xl font-bold text-green-600 dark:text-green-400">
+                    ${data.revenue.total.toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">{data.revenue.paymentCount} payment records</p>
                 </div>
               </div>
             </div>

@@ -16,26 +16,54 @@ import { authFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { DollarLineIcon, ListIcon } from "@/icons";
 
-export type FinancePaymentRow = {
-  id: number;
-  amount: number;
-  semester: string;
-  year: number;
-  paymentMethod: string;
-  receiptNumber: string | null;
-  transactionId: string | null;
-  paymentDate: string;
-  paidAt: string;
-  note: string | null;
-  bank: { id: number; name: string; code: string } | null;
-  student: {
-    studentId: string;
-    firstName: string;
-    lastName: string;
-    department: { name: string; code: string };
-  };
-  recordedBy: { id: number; name: string; email: string } | null;
-};
+export type FinancePaymentRow =
+  | {
+      kind: "tuition";
+      id: number;
+      amount: number;
+      semester: string;
+      year: number;
+      paymentMethod: string;
+      receiptNumber: string | null;
+      transactionId: string | null;
+      paymentDate: string;
+      paidAt: string;
+      note: string | null;
+      bank: { id: number; name: string; code: string } | null;
+      student: {
+        studentId: string;
+        firstName: string;
+        lastName: string;
+        department: { name: string; code: string };
+      };
+      recordedBy: { id: number; name: string | null; email: string } | null;
+    }
+  | {
+      kind: "monthly";
+      id: number;
+      batchId: string;
+      calendarYear: number;
+      month: number;
+      amount: number;
+      paymentMethod: string;
+      receiptNumber: string | null;
+      transactionId: string | null;
+      paymentDate: string;
+      paidAt: string;
+      note: string | null;
+      bank: { id: number; name: string; code: string } | null;
+      student: {
+        studentId: string;
+        firstName: string;
+        lastName: string;
+        department: { name: string; code: string };
+      };
+      recordedBy: { id: number; name: string | null; email: string } | null;
+    };
+
+function monthName(m: number): string {
+  return new Date(2000, m - 1, 1).toLocaleString("en-US", { month: "long" });
+}
 
 function paymentMethodLabel(method: string) {
   switch (method) {
@@ -53,6 +81,17 @@ function paymentReference(p: FinancePaymentRow) {
   if (p.paymentMethod === "electronic" && p.transactionId) return p.transactionId;
   if (p.note?.trim()) return p.note.trim();
   return "—";
+}
+
+function periodLabel(p: FinancePaymentRow) {
+  if (p.kind === "tuition") {
+    return `${p.semester} ${p.year}`;
+  }
+  return `${monthName(p.month)} ${p.calendarYear}`;
+}
+
+function paymentTypeLabel(p: FinancePaymentRow) {
+  return p.kind === "tuition" ? "Semester tuition" : "Monthly fee";
 }
 
 export default function FinancePaymentsPage() {
@@ -73,7 +112,7 @@ export default function FinancePaymentsPage() {
           page: String(page),
           pageSize: String(ps),
         });
-        const res = await authFetch(`/api/tuition-payments?${params}`);
+        const res = await authFetch(`/api/finance/payments?${params}`);
         if (res.ok) {
           const data = await res.json();
           setFinancePayments(Array.isArray(data.items) ? data.items : []);
@@ -124,7 +163,7 @@ export default function FinancePaymentsPage() {
 
       <div className="mb-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500 dark:text-gray-400">
         <Link href="/finance" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
-          Record payment
+          Finance home
         </Link>
         <span className="text-gray-300 dark:text-gray-600" aria-hidden>
           ·
@@ -144,10 +183,10 @@ export default function FinancePaymentsPage() {
         <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-800">
           <h1 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
             <ListIcon className="h-5 w-5 shrink-0 text-brand-500" />
-            Tuition payments
+            Payments
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            All recorded tuition payments, newest first.
+            Semester tuition and monthly fee payments, newest first.
           </p>
         </div>
         <div className="p-0">
@@ -160,12 +199,12 @@ export default function FinancePaymentsPage() {
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800">
                 <DollarLineIcon className="h-6 w-6 text-gray-400" />
               </div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">No tuition payments recorded yet.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">No payments recorded yet.</p>
               <Link
-                href="/finance"
+                href="/finance/collect-monthly-fee"
                 className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
               >
-                Record a payment
+                Collect monthly fee
               </Link>
             </div>
           ) : (
@@ -175,8 +214,9 @@ export default function FinancePaymentsPage() {
                   <TableHeader>
                     <TableRow className="bg-transparent! hover:bg-transparent!">
                       <TableCell isHeader>Date</TableCell>
+                      <TableCell isHeader>Type</TableCell>
                       <TableCell isHeader>Student</TableCell>
-                      <TableCell isHeader>Semester</TableCell>
+                      <TableCell isHeader>Period</TableCell>
                       <TableCell isHeader className="text-right">Amount</TableCell>
                       <TableCell isHeader>Method</TableCell>
                       <TableCell isHeader>Bank</TableCell>
@@ -186,9 +226,12 @@ export default function FinancePaymentsPage() {
                   </TableHeader>
                   <TableBody>
                     {financePayments.map((p) => (
-                      <TableRow key={p.id}>
+                      <TableRow key={`${p.kind}-${p.id}`}>
                         <TableCell className="whitespace-nowrap">
                           {new Date(p.paymentDate).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-gray-600 dark:text-gray-300">
+                          {paymentTypeLabel(p)}
                         </TableCell>
                         <TableCell>
                           <Link
@@ -202,7 +245,9 @@ export default function FinancePaymentsPage() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {p.semester} {p.year}
+                          <span title={p.kind === "monthly" ? `Batch ${p.batchId}` : undefined}>
+                            {periodLabel(p)}
+                          </span>
                         </TableCell>
                         <TableCell className="text-right font-semibold text-green-600 dark:text-green-400">
                           ${Number(p.amount).toLocaleString()}

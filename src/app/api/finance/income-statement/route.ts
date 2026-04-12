@@ -16,12 +16,18 @@ export async function GET(req: NextRequest) {
     const startOfYear = new Date(`${y}-01-01T00:00:00.000Z`);
     const endOfYear = new Date(`${y}-12-31T23:59:59.999Z`);
 
-    // Revenue: tuition payments
-    const tuitionRevenue = await prisma.tuitionPayment.aggregate({
-      where: { year: y },
-      _sum: { amount: true },
-      _count: true,
-    });
+    const [tuitionRevenue, monthlyFeeRevenue] = await Promise.all([
+      prisma.tuitionPayment.aggregate({
+        where: { year: y },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.studentMonthlyPayment.aggregate({
+        where: { year: y },
+        _sum: { amount: true },
+        _count: true,
+      }),
+    ]);
 
     // Expenses: approved expenses
     const approvedExpenses = await prisma.expense.aggregate({
@@ -42,7 +48,9 @@ export async function GET(req: NextRequest) {
       _count: true,
     });
 
-    const totalRevenue = tuitionRevenue._sum.amount ?? 0;
+    const tuitionAmt = tuitionRevenue._sum.amount ?? 0;
+    const monthlyFeeAmt = monthlyFeeRevenue._sum.amount ?? 0;
+    const totalRevenue = tuitionAmt + monthlyFeeAmt;
     const totalExpenses = (approvedExpenses._sum.amount ?? 0) + (withdrawals._sum.amount ?? 0);
     const netIncome = totalRevenue - totalExpenses;
 
@@ -66,8 +74,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       year: y,
       revenue: {
-        tuition: totalRevenue,
-        paymentCount: tuitionRevenue._count,
+        tuition: tuitionAmt,
+        monthlyFee: monthlyFeeAmt,
+        total: totalRevenue,
+        tuitionPaymentCount: tuitionRevenue._count,
+        monthlyPaymentCount: monthlyFeeRevenue._count,
+        paymentCount: tuitionRevenue._count + monthlyFeeRevenue._count,
       },
       expenses: {
         approvedExpenses: approvedExpenses._sum.amount ?? 0,

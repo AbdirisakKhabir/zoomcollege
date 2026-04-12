@@ -27,6 +27,8 @@ model User {
   expensesApproved   Expense[]            @relation("ExpenseApprovedBy")
   payrollsRequested  Payroll[]            @relation("PayrollRequestedBy")
   payrollsApproved   Payroll[]            @relation("PayrollApprovedBy")
+  monthlyInvoicesCreated StudentMonthlyInvoice[]
+  monthlyFeePaymentsRecorded StudentMonthlyPayment[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
@@ -137,23 +139,39 @@ model Department {
 }
 
 model Course {
-  id             Int             @id @default(autoincrement())
+  id             Int                 @id @default(autoincrement())
   name           String
-  code           String          // e.g. "CS101", "ENG201" - unique per department
+  code           String              // e.g. "CS101", "ENG201" - unique per department
   description    String?
-  creditHours    Int             @default(3)
+  creditHours    Int                 @default(3)
   departmentId   Int
-  department     Department      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  isActive       Boolean         @default(true)
+  department     Department          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  isActive       Boolean             @default(true)
+  assessments    CourseAssessment[]
   examRecords    ExamRecord[]
   lecturers      LecturerCourse[]
   classSchedules ClassSchedule[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   @@unique([code, departmentId])
   @@unique([name, departmentId])
   @@map("courses")
+}
+
+/// Per-course grading components; weightPercent values should sum to 100. Max marks for each = weightPercent (out of 100 total).
+model CourseAssessment {
+  id            Int     @id @default(autoincrement())
+  courseId      Int
+  course        Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  name          String // e.g. "Mid Exam", "Assignment"
+  key           String // stable id for JSON scores & import columns, e.g. "midExam"
+  weightPercent Float
+  sortOrder     Int     @default(0)
+
+  @@unique([courseId, key])
+  @@index([courseId])
+  @@map("course_assessments")
 }
 
 model Semester {
@@ -247,7 +265,10 @@ model Student {
   admissionDate      DateTime             @default(now())
   status             String               @default("Admitted") // "Pending", "Admitted", "Rejected", "Graduated"
   paymentStatus      String               @default("Fully Paid") // "Full Scholarship", "Half Scholar", "Fully Paid"
+  fee                Float?               // Monthly tuition amount for invoicing; if null, department tuitionFee is used
   balance            Float                @default(0) // Amount owed; charged at registration, reduced by payments
+  monthlyInvoices    StudentMonthlyInvoice[]
+  monthlyFeePayments StudentMonthlyPayment[]
   attendanceRecords  AttendanceRecord[]
   examRecords        ExamRecord[]
   tuitionPayments    TuitionPayment[]
@@ -266,6 +287,7 @@ model Bank {
   balance            Float                @default(0)
   isActive           Boolean              @default(true)
   tuitionPayments    TuitionPayment[] // Payments deposited to this bank
+  monthlyFeePayments StudentMonthlyPayment[]
   withdrawals        BankWithdrawal[]     @relation("WithdrawFromBank")
   transfersOut       BankTransfer[]       @relation("TransferFromBank")
   transfersIn        BankTransfer[]       @relation("TransferToBank")
@@ -289,6 +311,8 @@ model TransactionHistory {
   studentId        Int?
   student          Student? @relation(fields: [studentId], references: [id], onDelete: SetNull)
   tuitionPaymentId Int?
+  studentMonthlyPaymentId Int? @unique
+  linkedMonthlyFeePayment StudentMonthlyPayment? @relation("MonthlyFeeDeposit", fields: [studentMonthlyPaymentId], references: [id], onDelete: SetNull)
   bankWithdrawalId Int?
   bankTransferId   Int?
   createdAt        DateTime @default(now())
@@ -320,6 +344,51 @@ model TuitionPayment {
 
   @@unique([studentId, semester, year])
   @@map("tuition_payments")
+}
+
+// One row per student per calendar month when a monthly fee is posted to balance (prevents double charge).
+model StudentMonthlyInvoice {
+  id            Int      @id @default(autoincrement())
+  studentId     Int
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  year          Int
+  month         Int // 1–12
+  amount        Float
+  note          String?
+  createdAt     DateTime @default(now())
+  createdById   Int?
+  createdBy     User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, year, month])
+  @@map("student_monthly_invoices")
+}
+
+// Monthly fee payments (calendar months); one row per month. batchId groups rows from the same receipt.
+model StudentMonthlyPayment {
+  id            Int      @id @default(autoincrement())
+  batchId       String   @db.VarChar(36)
+  studentId     Int
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  bankId        Int
+  bank          Bank     @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  year          Int
+  month         Int // 1–12
+  amount        Float
+  paymentMethod String   @default("bank_receipt")
+  receiptNumber String?
+  transactionId String?
+  paymentDate   DateTime @default(now())
+  paidAt        DateTime @default(now())
+  recordedById  Int?
+  recordedBy    User?    @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  note          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  depositTransaction TransactionHistory? @relation("MonthlyFeeDeposit")
+
+  @@unique([studentId, year, month])
+  @@index([batchId])
+  @@map("student_monthly_payments")
 }
 
 model BankWithdrawal {
@@ -456,25 +525,20 @@ model Payroll {
 }
 
 model ExamRecord {
-  id           Int      @id @default(autoincrement())
-  studentId    Int
-  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  courseId     Int
-  course       Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  semester     String // "Fall", "Spring", "Summer"
-  year         Int // e.g. 2026
-  midExam      Float?   @default(0) // out of 20
-  finalExam    Float?   @default(0) // out of 40
-  assessment   Float?   @default(0) // out of 10
-  project      Float?   @default(0) // out of 10
-  assignment   Float?   @default(0) // out of 10
-  presentation Float?   @default(0) // out of 10
-  totalMarks   Float    @default(0) // sum of all (out of 100)
-  grade        String? // "A", "A-", "B+", "B", "B-", "C+", "C", "D", "F"
-  gradePoints  Float?   @default(0) // 4.0, 3.7, 3.3, 3.0, 2.7, 2.3, 2.0, 1.0, 0.0
-  status       String   @default("approved") // "draft" | "approved" - draft until instructor verifies
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         Int      @id @default(autoincrement())
+  studentId  Int
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId   Int
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  semester   String // "Fall", "Spring", "Summer"
+  year       Int // e.g. 2026
+  scores     Json     @default("{}") // { "midExam": 15, "finalExam": 32, ... } keys match CourseAssessment.key
+  totalMarks Float    @default(0) // sum of component marks (out of 100)
+  grade      String? // "A", "A-", "B+", "B", "B-", "C+", "C", "D", "F"
+  gradePoints Float?  @default(0) // 4.0, 3.7, 3.3, 3.0, 2.7, 2.3, 2.0, 1.0, 0.0
+  status     String   @default("approved") // "draft" | "approved" - draft until instructor verifies
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@unique([studentId, courseId, semester, year])
   @@map("exam_records")

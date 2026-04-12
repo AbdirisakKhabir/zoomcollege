@@ -25,11 +25,19 @@ export async function GET(req: NextRequest) {
     });
     const totalReceivables = students.reduce((sum, s) => sum + (s.balance ?? 0), 0);
 
-    const paymentsThisYear = await prisma.tuitionPayment.aggregate({
-      where: { year: Number(year) },
-      _sum: { amount: true },
-      _count: true,
-    });
+    const y = Number(year);
+    const [tuitionThisYear, monthlyFeeThisYear] = await Promise.all([
+      prisma.tuitionPayment.aggregate({
+        where: { year: y },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.studentMonthlyPayment.aggregate({
+        where: { year: y },
+        _sum: { amount: true },
+        _count: true,
+      }),
+    ]);
 
     const withdrawalsThisYear = await prisma.bankWithdrawal.aggregate({
       where: {
@@ -46,10 +54,15 @@ export async function GET(req: NextRequest) {
       banks,
       totalBankBalance,
       totalReceivables,
-      year: Number(year),
+      year: y,
       revenue: {
-        totalPayments: paymentsThisYear._sum.amount ?? 0,
-        paymentCount: paymentsThisYear._count,
+        totalPayments:
+          (tuitionThisYear._sum.amount ?? 0) + (monthlyFeeThisYear._sum.amount ?? 0),
+        paymentCount: tuitionThisYear._count + monthlyFeeThisYear._count,
+        semesterTuition: tuitionThisYear._sum.amount ?? 0,
+        monthlyFee: monthlyFeeThisYear._sum.amount ?? 0,
+        semesterTuitionCount: tuitionThisYear._count,
+        monthlyPaymentCount: monthlyFeeThisYear._count,
       },
       withdrawals: {
         total: withdrawalsThisYear._sum.amount ?? 0,

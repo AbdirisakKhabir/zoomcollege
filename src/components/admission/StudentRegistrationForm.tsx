@@ -36,6 +36,7 @@ export type StudentFormData = {
   program: string;
   status: string;
   paymentStatus: string;
+  fee: string;
   imageUrl: string;
   imagePublicId: string;
 };
@@ -60,6 +61,7 @@ const defaultForm: StudentFormData = {
   program: "",
   status: "Admitted",
   paymentStatus: "Fully Paid",
+  fee: "",
   imageUrl: "",
   imagePublicId: "",
 };
@@ -129,7 +131,15 @@ export default function StudentRegistrationForm({
     setSubmitError("");
     setSubmitting(true);
     try {
-      const payload = {
+      if (form.fee.trim() !== "") {
+        const f = Number(form.fee);
+        if (Number.isNaN(f) || f < 0) {
+          setSubmitError("Monthly fee must be a valid non-negative number");
+          setSubmitting(false);
+          return;
+        }
+      }
+      const payload: Record<string, unknown> = {
         studentId: form.studentId.trim() || undefined,
         firstName: form.firstName,
         lastName: form.lastName,
@@ -152,6 +162,11 @@ export default function StudentRegistrationForm({
         imageUrl: form.imageUrl || undefined,
         imagePublicId: form.imagePublicId || undefined,
       };
+      if (form.fee.trim() !== "") {
+        payload.fee = Number(form.fee);
+      } else if (mode === "edit") {
+        payload.fee = null;
+      }
       if (mode === "add") {
         const res = await authFetch("/api/students", {
           method: "POST",
@@ -217,6 +232,21 @@ export default function StudentRegistrationForm({
             {submitError}
           </div>
         )}
+
+        <div className="overflow-hidden rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 via-white to-indigo-50 p-5 shadow-sm dark:border-violet-800/50 dark:from-violet-950/40 dark:via-gray-900/80 dark:to-indigo-950/30">
+          <p className="text-sm font-semibold text-violet-900 dark:text-violet-200">Monthly fee payments &amp; receipts</p>
+          <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+            To record a <strong>calendar-month</strong> fee payment (one or multiple months), choose a bank, enter the amount,
+            and print an official receipt — use{" "}
+            <Link
+              href="/finance/collect-monthly-fee"
+              className="font-semibold text-violet-700 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100"
+            >
+              Finance → Collect monthly fee
+            </Link>
+            .
+          </p>
+        </div>
 
         {/* Header Card */}
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -344,6 +374,23 @@ export default function StudentRegistrationForm({
               <select value={form.paymentStatus} onChange={(e) => setForm((f) => ({ ...f, paymentStatus: e.target.value }))} className={selectClass}>
                 {PAYMENT_STATUSES.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Monthly fee <span className="text-gray-400">(optional)</span>
+              </label>
+              <p className="mb-1.5 text-xs text-gray-500 dark:text-gray-400">
+                Used for monthly invoicing from Finance. If empty, the department tuition fee is used.
+              </p>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.fee}
+                onChange={(e) => setForm((f) => ({ ...f, fee: e.target.value }))}
+                placeholder="e.g. 150"
+                className={inputClass}
+              />
             </div>
           </div>
         </div>

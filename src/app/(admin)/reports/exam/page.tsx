@@ -27,19 +27,34 @@ type ExamRecord = {
   id: number;
   semester: string;
   year: number;
-  midExam: number | null;
-  finalExam: number | null;
+  scores: Record<string, number> | null;
   totalMarks: number;
   grade: string | null;
   gradePoints: number | null;
   student: { studentId: string; firstName: string; lastName: string; department: { code: string } };
-  course: { code: string; name: string; creditHours: number };
+  course: {
+    code: string;
+    name: string;
+    creditHours: number;
+    assessments?: { key: string; name: string; weightPercent: number; sortOrder: number }[];
+  };
   attendancePercent?: number;
   attendanceMarks?: number;
   totalSessions?: number;
 };
 
 type SemesterOption = { id: number; name: string; sortOrder: number; isActive: boolean };
+function formatScoresShort(
+  scores: Record<string, number> | null | undefined,
+  assessments: { key: string; name: string; sortOrder: number }[] | undefined
+): string {
+  if (!scores || !assessments?.length) return "—";
+  return [...assessments]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((a) => `${a.name.slice(0, 8)}:${scores[a.key] ?? 0}`)
+    .join(" · ");
+}
+
 const GRADE_COLOR: Record<string, "success" | "primary" | "warning" | "error" | "info"> = {
   A: "success", "A-": "success", "B+": "primary", B: "primary", "B-": "info",
   "C+": "warning", C: "warning", D: "error", F: "error",
@@ -202,8 +217,7 @@ export default function ExamReportPage() {
                 <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Course</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Semester</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Year</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Mid</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Final</TableCell>
+                <TableCell isHeader className="min-w-[180px] px-5 py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Components</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Total</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Grade</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">GP</TableCell>
@@ -212,7 +226,7 @@ export default function ExamReportPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="px-5 py-10 text-center">
+                  <TableCell colSpan={8} className="px-5 py-10 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
                       <span className="text-sm text-gray-500">Loading...</span>
@@ -221,7 +235,7 @@ export default function ExamReportPage() {
                 </TableRow>
               ) : records.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="px-5 py-10 text-center text-sm text-gray-500">
+                  <TableCell colSpan={8} className="px-5 py-10 text-center text-sm text-gray-500">
                     No exam records match the selected filters.
                   </TableCell>
                 </TableRow>
@@ -238,8 +252,9 @@ export default function ExamReportPage() {
                     </TableCell>
                     <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.semester}</TableCell>
                     <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.year}</TableCell>
-                    <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.midExam ?? 0}</TableCell>
-                    <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.finalExam ?? 0}</TableCell>
+                    <TableCell className="max-w-[220px] px-5 py-3 text-left text-xs text-gray-600 dark:text-gray-400">
+                      {formatScoresShort(r.scores, r.course.assessments)}
+                    </TableCell>
                     <TableCell className="px-5 py-3 text-center font-medium text-gray-800 dark:text-white/90">{r.totalMarks}</TableCell>
                     <TableCell className="px-5 py-3 text-center">
                       <Badge variant="solid" color={GRADE_COLOR[r.grade || "F"] || "error"} size="sm">{r.grade || "N/A"}</Badge>

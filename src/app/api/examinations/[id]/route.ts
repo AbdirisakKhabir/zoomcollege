@@ -1,7 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateTotal, getGradeInfo } from "@/lib/grades";
+import { calculateTotalFromScoreMap, getGradeInfo } from "@/lib/grades";
+import { mergeScores, parseScoresJson } from "@/lib/course-assessments";
+import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
+
+const courseInclude = {
+  select: {
+    id: true,
+    name: true,
+    code: true,
+    creditHours: true,
+    department: { select: { id: true, name: true, code: true } },
+    assessments: {
+      orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }],
+      select: {
+        id: true,
+        name: true,
+        key: true,
+        weightPercent: true,
+        sortOrder: true,
+      },
+    },
+  },
+};
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -25,15 +47,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             department: { select: { id: true, name: true, code: true } },
           },
         },
-        course: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            creditHours: true,
-            department: { select: { id: true, name: true, code: true } },
-          },
-        },
+        course: courseInclude,
       },
     });
 
@@ -57,43 +71,42 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const { id } = await params;
     const body = await req.json();
-    const { midExam, finalExam, assessment, project, assignment, presentation } = body;
+    if (body?.scores === undefined || body.scores === null || typeof body.scores !== "object") {
+      return NextResponse.json({ error: "scores object is required" }, { status: 400 });
+    }
+    const scoresPatch = body.scores as Record<string, number | undefined>;
 
     const existing = await prisma.examRecord.findUnique({ where: { id: Number(id) } });
     if (!existing) {
       return NextResponse.json({ error: "Exam record not found" }, { status: 404 });
     }
 
-    const marks = {
-      midExam: midExam !== undefined ? Number(midExam) : (existing.midExam || 0),
-      finalExam: finalExam !== undefined ? Number(finalExam) : (existing.finalExam || 0),
-      assessment: assessment !== undefined ? Number(assessment) : (existing.assessment || 0),
-      project: project !== undefined ? Number(project) : (existing.project || 0),
-      assignment: assignment !== undefined ? Number(assignment) : (existing.assignment || 0),
-      presentation: presentation !== undefined ? Number(presentation) : (existing.presentation || 0),
-    };
+    await seedDefaultAssessmentsIfEmpty(existing.courseId);
 
-    // Validate
-    if (marks.midExam < 0 || marks.midExam > 20) return NextResponse.json({ error: "Mid Exam must be 0-20" }, { status: 400 });
-    if (marks.finalExam < 0 || marks.finalExam > 40) return NextResponse.json({ error: "Final Exam must be 0-40" }, { status: 400 });
-    if (marks.assessment < 0 || marks.assessment > 10) return NextResponse.json({ error: "Assessment must be 0-10" }, { status: 400 });
-    if (marks.project < 0 || marks.project > 10) return NextResponse.json({ error: "Project must be 0-10" }, { status: 400 });
-    if (marks.assignment < 0 || marks.assignment > 10) return NextResponse.json({ error: "Assignment must be 0-10" }, { status: 400 });
-    if (marks.presentation < 0 || marks.presentation > 10) return NextResponse.json({ error: "Presentation must be 0-10" }, { status: 400 });
+    const assessments = await prisma.courseAssessment.findMany({
+      where: { courseId: existing.courseId },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    });
 
-    const totalMarks = calculateTotal(marks);
+    const prev = parseScoresJson(existing.scores);
+    const patch = scoresPatch;
+
+    const { scores, error } = mergeScores(prev, patch, assessments);
+    if (error) {
+      return NextResponse.json({ error }, { status: 400 });
+    }
+
+    const totalMarks = calculateTotalFromScoreMap(scores);
     const { grade, gradePoints } = getGradeInfo(totalMarks);
 
     const updated = await prisma.examRecord.update({
       where: { id: Number(id) },
-      data: { ...marks, totalMarks, grade, gradePoints },
+      data: { scores, totalMarks, grade, gradePoints },
       include: {
         student: {
           select: { id: true, studentId: true, firstName: true, lastName: true, imageUrl: true },
         },
-        course: {
-          select: { id: true, name: true, code: true, creditHours: true },
-        },
+        course: courseInclude,
       },
     });
 

@@ -179,7 +179,7 @@ export function TranscriptDocument({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={TRANSCRIPT_HEADER_IMAGE}
-            alt="Abaarso Tech University — Registrar of Office"
+            alt="Era Pre-University — Office of the Registrar"
             className="h-auto w-full max-h-[160px] object-contain object-left print:max-h-[120px]"
           />
           <div className="my-2 border-t border-black print:my-1" />

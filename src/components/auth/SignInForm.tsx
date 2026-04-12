@@ -71,8 +71,8 @@ export default function SignInForm() {
           <div className="mb-5 sm:mb-8">
             <Link href="/" className="inline-block mb-5">
               <Image
-                src="/logo/logo%20abaarso.png"
-                alt="Logo"
+                src="/logo/era-pre-university.png"
+                alt="Era Pre-University"
                 width={160}
                 height={44}
                 className="object-contain h-10 w-auto"
@@ -80,7 +80,7 @@ export default function SignInForm() {
               />
             </Link>
             <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-              Abaarso Tech University
+              Era Pre-University
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Sign in with your email and password.

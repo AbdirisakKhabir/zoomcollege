@@ -6,6 +6,7 @@ import {
   computeAttendancePercent,
 } from "@/lib/attendance";
 import { getSemesterDateRange } from "@/lib/semester-dates";
+import { parseScoresJson } from "@/lib/course-assessments";
 
 /**
  * GET /api/reports/attendance-exam?classId=X&courseId=Y
@@ -170,12 +171,7 @@ export async function GET(req: NextRequest) {
           courseId: e.courseId,
           courseCode: e.course.code,
           courseName: e.course.name,
-          midExam: e.midExam ?? 0,
-          finalExam: e.finalExam ?? 0,
-          assessment: e.assessment ?? 0,
-          project: e.project ?? 0,
-          assignment: e.assignment ?? 0,
-          presentation: e.presentation ?? 0,
+          scores: parseScoresJson(e.scores),
           totalMarks: e.totalMarks ?? 0,
           grade: e.grade ?? "",
           gradePoints: e.gradePoints ?? 0,

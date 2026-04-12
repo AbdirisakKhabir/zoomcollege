@@ -53,17 +53,19 @@ export default function RecordExamsPage() {
   const [recordCourseId, setRecordCourseId] = useState("");
   const [recordClassData, setRecordClassData] = useState<{
     class: { id: number; name: string; semester: string; year: number; department: { id: number; name: string; code: string } };
-    course?: { id: number; name: string; code: string };
+    course?: {
+      id: number;
+      name: string;
+      code: string;
+      creditHours?: number;
+      assessments: { id: number; name: string; key: string; weightPercent: number; sortOrder: number }[];
+    };
     totalSessions?: number;
     rows: {
       student: { id: number; studentId: string; firstName: string; lastName: string };
       attendance?: { present: number; absent: number; excused: number; totalSessions: number; attendancePercent: number; attendanceMarks: number };
       record: {
-        midExam: number;
-        finalExam: number;
-        project: number;
-        assignment: number;
-        presentation: number;
+        scores: Record<string, number>;
         totalMarks: number;
         grade: string;
         gradePoints: number;
@@ -105,7 +107,7 @@ export default function RecordExamsPage() {
     setRecordSaveResult(null);
     authFetch(`/api/examinations/record-class?classId=${recordClassId}&courseId=${recordCourseId}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setRecordClassData(data?.rows ? data : null))
+      .then((data) => setRecordClassData(data?.course?.assessments && data?.rows ? data : null))
       .catch(() => setRecordClassData(null))
       .finally(() => setRecordLoading(false));
   }, [recordClassId, recordCourseId]);
@@ -134,28 +136,37 @@ export default function RecordExamsPage() {
 
   const updateRecordRow = (
     idx: number,
-    field: "midExam" | "finalExam" | "project" | "assignment" | "presentation" | "totalMarks" | "grade" | "gradePoints",
-    value: string | number
+    field: "totalMarks" | "grade" | "gradePoints" | "score",
+    value: string | number,
+    scoreKey?: string
   ) => {
     setRecordClassData((prev) => {
-      if (!prev) return prev;
+      if (!prev?.course?.assessments) return prev;
       const rows = [...prev.rows];
       const r = rows[idx];
       if (!r) return prev;
+      const assessments = prev.course.assessments;
       const rec = r.record ?? {
-        midExam: 0, finalExam: 0, project: 0, assignment: 0, presentation: 0,
-        totalMarks: 0, grade: "", gradePoints: 0,
+        scores: Object.fromEntries(assessments.map((a) => [a.key, 0])) as Record<string, number>,
+        totalMarks: 0,
+        grade: "",
+        gradePoints: 0,
       };
       const numVal = typeof value === "string" ? (value === "" ? 0 : parseFloat(value) || 0) : value;
       const strVal = typeof value === "string" ? value : String(value);
-      const next = { ...rec };
+      const next = {
+        scores: { ...rec.scores },
+        totalMarks: rec.totalMarks,
+        grade: rec.grade,
+        gradePoints: rec.gradePoints,
+      };
       if (field === "grade") next.grade = strVal;
       else if (field === "gradePoints") next.gradePoints = numVal;
-      else {
-        next[field] = numVal;
-        if (field !== "totalMarks") {
-          next.totalMarks = next.midExam + next.finalExam + next.project + next.assignment + next.presentation;
-        }
+      else if (field === "totalMarks") next.totalMarks = numVal;
+      else if (field === "score" && scoreKey) {
+        const max = assessments.find((a) => a.key === scoreKey)?.weightPercent ?? 100;
+        next.scores[scoreKey] = Math.max(0, Math.min(max, numVal));
+        next.totalMarks = assessments.reduce((s, a) => s + (next.scores[a.key] ?? 0), 0);
       }
       rows[idx] = { ...r, record: next };
       return { ...prev, rows };
@@ -173,7 +184,10 @@ export default function RecordExamsPage() {
         status: "draft",
         records: recordClassData.rows.map((r) => ({
           studentId: r.student.id,
-          ...(r.record ?? { midExam: 0, finalExam: 0, project: 0, assignment: 0, presentation: 0, totalMarks: 0, grade: "", gradePoints: 0 }),
+          scores: r.record?.scores ?? {},
+          totalMarks: r.record?.totalMarks,
+          grade: r.record?.grade,
+          gradePoints: r.record?.gradePoints,
         })),
       };
       const res = await authFetch("/api/examinations/bulk", {
@@ -207,7 +221,10 @@ export default function RecordExamsPage() {
         status: "approved",
         records: recordClassData.rows.map((r) => ({
           studentId: r.student.id,
-          ...(r.record ?? { midExam: 0, finalExam: 0, project: 0, assignment: 0, presentation: 0, totalMarks: 0, grade: "", gradePoints: 0 }),
+          scores: r.record?.scores ?? {},
+          totalMarks: r.record?.totalMarks,
+          grade: r.record?.grade,
+          gradePoints: r.record?.gradePoints,
         })),
       };
       const res = await authFetch("/api/examinations/bulk", {
@@ -310,7 +327,7 @@ export default function RecordExamsPage() {
       <div className="mb-6 rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/5">
         <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-800">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Upload Exam Records</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Download a template, fill in grades, then upload to import.</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Download a template (columns match the course&apos;s assessment setup), fill in grades, then upload to import.</p>
         </div>
         <div className="flex flex-col gap-6 p-6 lg:flex-row lg:items-end">
           <div className="flex flex-1 flex-col gap-4 rounded-xl border border-gray-100 bg-gray-50/50 p-4 dark:border-gray-800 dark:bg-white/2">
@@ -446,7 +463,7 @@ export default function RecordExamsPage() {
             <div className="flex items-center justify-center py-16">
               <div className="h-10 w-10 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
             </div>
-          ) : recordClassData && recordClassData.rows.length > 0 ? (
+          ) : recordClassData && recordClassData.course && recordClassData.rows.length > 0 ? (
             <>
             <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
               <Table>
@@ -456,11 +473,11 @@ export default function RecordExamsPage() {
                     <TableCell isHeader className="min-w-[110px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">ID Card</TableCell>
                     <TableCell isHeader className="min-w-[180px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">Student</TableCell>
                     <TableCell isHeader className="w-16 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"><span title="Attendance % (Present+Excused)">Attend %</span></TableCell>
-                    <TableCell isHeader className="w-20 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Mid</TableCell>
-                    <TableCell isHeader className="w-20 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Asg2</TableCell>
-                    <TableCell isHeader className="w-20 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Asg1</TableCell>
-                    <TableCell isHeader className="w-16 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Final</TableCell>
-                    <TableCell isHeader className="w-20 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Attend</TableCell>
+                    {recordClassData.course.assessments.map((a) => (
+                      <TableCell key={a.key} isHeader className="min-w-[5.5rem] px-2 py-3 text-center text-[10px] font-semibold uppercase leading-tight text-gray-600 dark:text-gray-300">
+                        <span className="line-clamp-2" title={`Max ${a.weightPercent}%`}>{a.name} ({a.weightPercent}%)</span>
+                      </TableCell>
+                    ))}
                     <TableCell isHeader className="w-20 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Total</TableCell>
                     <TableCell isHeader className="w-16 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">Grade</TableCell>
                     <TableCell isHeader className="w-16 px-2 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300">GPA</TableCell>
@@ -468,7 +485,13 @@ export default function RecordExamsPage() {
                 </TableHeader>
                 <TableBody>
                   {paginatedRecordRows.map((r, idx) => {
-                    const rec = r.record ?? { midExam: 0, finalExam: 0, project: 0, assignment: 0, presentation: 0, totalMarks: 0, grade: "", gradePoints: 0 };
+                    const assessments = recordClassData.course!.assessments;
+                    const rec = r.record ?? {
+                      scores: Object.fromEntries(assessments.map((a) => [a.key, 0])) as Record<string, number>,
+                      totalMarks: 0,
+                      grade: "",
+                      gradePoints: 0,
+                    };
                     const globalIdx = (recordPage - 1) * recordPageSize + idx;
                     return (
                       <TableRow key={r.student.id} className="border-b border-gray-100 transition hover:bg-gray-50/50 dark:border-gray-800 dark:hover:bg-white/2">
@@ -476,13 +499,21 @@ export default function RecordExamsPage() {
                         <TableCell className="px-3 py-2 font-mono text-sm text-gray-800 dark:text-white/90">{r.student.studentId}</TableCell>
                         <TableCell className="px-3 py-2 text-sm font-medium text-gray-800 dark:text-white/90">{r.student.firstName} {r.student.lastName}</TableCell>
                         <TableCell className="px-3 py-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                          <span title="Attendance % (10% of grade)">{r.attendance != null ? `${r.attendance.attendancePercent}%` : "—"}</span>
+                          <span title="Attendance % (Present+Excused)">{r.attendance != null ? `${r.attendance.attendancePercent}%` : "—"}</span>
                         </TableCell>
-                        <TableCell className="p-2"><input type="number" min={0} max={20} step={0.5} value={rec.midExam || ""} onChange={(e) => updateRecordRow(globalIdx, "midExam", e.target.value)} className={inputCellClass} /></TableCell>
-                        <TableCell className="p-2"><input type="number" min={0} max={10} step={0.5} value={rec.project || ""} onChange={(e) => updateRecordRow(globalIdx, "project", e.target.value)} className={inputCellClass} /></TableCell>
-                        <TableCell className="p-2"><input type="number" min={0} max={10} step={0.5} value={rec.assignment || ""} onChange={(e) => updateRecordRow(globalIdx, "assignment", e.target.value)} className={inputCellClass} /></TableCell>
-                        <TableCell className="p-2"><input type="number" min={0} max={40} step={0.5} value={rec.finalExam || ""} onChange={(e) => updateRecordRow(globalIdx, "finalExam", e.target.value)} className={inputCellClass} /></TableCell>
-                        <TableCell className="p-2"><input type="number" min={0} max={10} step={0.5} value={rec.presentation || ""} onChange={(e) => updateRecordRow(globalIdx, "presentation", e.target.value)} className={inputCellClass} /></TableCell>
+                        {assessments.map((a) => (
+                          <TableCell key={a.key} className="p-2">
+                            <input
+                              type="number"
+                              min={0}
+                              max={a.weightPercent}
+                              step={0.5}
+                              value={rec.scores[a.key] ?? ""}
+                              onChange={(e) => updateRecordRow(globalIdx, "score", e.target.value, a.key)}
+                              className={inputCellClass}
+                            />
+                          </TableCell>
+                        ))}
                         <TableCell className="p-2"><input type="number" min={0} max={100} step={0.5} value={rec.totalMarks || ""} onChange={(e) => updateRecordRow(globalIdx, "totalMarks", e.target.value)} className={`${inputCellClass} font-semibold`} /></TableCell>
                         <TableCell className="p-2"><input type="text" value={rec.grade || ""} onChange={(e) => updateRecordRow(globalIdx, "grade", e.target.value)} placeholder="A" className={inputCellClass} maxLength={3} /></TableCell>
                         <TableCell className="p-2"><input type="number" min={0} max={4} step={0.1} value={rec.gradePoints || ""} onChange={(e) => updateRecordRow(globalIdx, "gradePoints", e.target.value)} className={inputCellClass} /></TableCell>

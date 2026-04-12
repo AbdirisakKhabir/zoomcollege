@@ -56,6 +56,7 @@ type StudentRow = {
   admissionDate: string;
   status: string;
   paymentStatus: string;
+  fee: number | null;
   balance: number;
   createdAt: string;
 };
@@ -520,6 +521,7 @@ export default function AdmissionPage() {
                 <TableCell isHeader>Class</TableCell>
                 <TableCell isHeader>Status</TableCell>
                 <TableCell isHeader>Payment</TableCell>
+                <TableCell isHeader className="text-right">Monthly fee</TableCell>
                 <TableCell isHeader className="text-right">Balance</TableCell>
                 <TableCell isHeader className="text-right">Actions</TableCell>
               </TableRow>
@@ -599,6 +601,9 @@ export default function AdmissionPage() {
                     <Badge color={PAYMENT_STATUS_COLOR[s.paymentStatus] || "light"} size="sm">
                       {s.paymentStatus || "Fully Paid"}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right text-sm text-gray-700 dark:text-gray-300">
+                    {s.fee != null ? `$${s.fee.toLocaleString()}` : "—"}
                   </TableCell>
                   <TableCell className="text-right font-medium text-gray-800 dark:text-white/90">
                     ${(s.balance ?? 0).toLocaleString()}

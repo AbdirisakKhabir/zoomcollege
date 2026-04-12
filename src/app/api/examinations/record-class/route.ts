@@ -6,12 +6,13 @@ import {
   computeAttendancePercent,
 } from "@/lib/attendance";
 import { getSemesterDateRange } from "@/lib/semester-dates";
+import { calculateTotalFromScoreMap } from "@/lib/grades";
+import { normalizeScoresForCourse, parseScoresJson } from "@/lib/course-assessments";
+import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
 
 /**
  * GET /api/examinations/record-class?classId=X&courseId=Y
- * Returns class info + course info + all students in the class + their existing exam records
- * for that course. Includes attendance (10% of grade) computed from semester-filtered sessions.
- * Presentation field is pre-filled from attendance when no record exists.
+ * Returns class + course (with assessments) + students + draft scores rows.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -61,7 +62,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get all students in this class (students with classId = this class)
+    await seedDefaultAssessmentsIfEmpty(parsedCourseId);
+
+    const assessments = await prisma.courseAssessment.findMany({
+      where: { courseId: parsedCourseId },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    });
+
     const students = await prisma.student.findMany({
       where: { classId: parsedClassId, status: "Admitted" },
       select: {
@@ -76,7 +83,6 @@ export async function GET(req: NextRequest) {
 
     const studentIds = students.map((s) => s.id);
 
-    // Fetch existing exam records for this course in this semester
     const examRecords = await prisma.examRecord.findMany({
       where: {
         studentId: { in: studentIds },
@@ -86,12 +92,7 @@ export async function GET(req: NextRequest) {
       },
       select: {
         studentId: true,
-        midExam: true,
-        finalExam: true,
-        assessment: true,
-        project: true,
-        assignment: true,
-        presentation: true,
+        scores: true,
         totalMarks: true,
         grade: true,
         gradePoints: true,
@@ -99,7 +100,6 @@ export async function GET(req: NextRequest) {
     });
     const examByStudent = new Map(examRecords.map((r) => [r.studentId, r]));
 
-    // Compute attendance for each student (semester-filtered)
     const { start, end } = getSemesterDateRange(cls.semester, cls.year);
     const sessions = await prisma.attendanceSession.findMany({
       where: {
@@ -153,29 +153,45 @@ export async function GET(req: NextRequest) {
         totalSessions
       );
 
-      const record = exam
-        ? {
-            midExam: exam.midExam ?? 0,
-            finalExam: exam.finalExam ?? 0,
-            assessment: exam.assessment ?? 0,
-            project: exam.project ?? 0,
-            assignment: exam.assignment ?? 0,
-            presentation: exam.presentation ?? 0,
+      if (exam) {
+        const scores = parseScoresJson(exam.scores);
+        return {
+          student: {
+            id: s.id,
+            studentId: s.studentId,
+            firstName: s.firstName,
+            lastName: s.lastName,
+            imageUrl: s.imageUrl,
+          },
+          attendance: {
+            present: agg.present,
+            absent: agg.absent,
+            late: agg.late,
+            excused: agg.excused,
+            totalSessions,
+            attendancePercent,
+            attendanceMarks,
+          },
+          record: {
+            scores,
             totalMarks: exam.totalMarks ?? 0,
             grade: exam.grade ?? "",
             gradePoints: exam.gradePoints ?? 0,
-          }
-        : {
-            midExam: 0,
-            finalExam: 0,
-            assessment: 0,
-            project: 0,
-            assignment: 0,
-            presentation: attendanceMarks,
-            totalMarks: attendanceMarks,
-            grade: "",
-            gradePoints: 0,
-          };
+          },
+        };
+      }
+
+      const draftScores: Record<string, number> = {};
+      for (const a of assessments) {
+        draftScores[a.key] = 0;
+      }
+      const pres = assessments.find((a) => a.key === "presentation");
+      if (pres) {
+        draftScores.presentation = attendanceMarks;
+      }
+
+      const { scores: normalized } = normalizeScoresForCourse(draftScores, assessments);
+      const totalMarks = calculateTotalFromScoreMap(normalized);
 
       return {
         student: {
@@ -194,7 +210,12 @@ export async function GET(req: NextRequest) {
           attendancePercent,
           attendanceMarks,
         },
-        record,
+        record: {
+          scores: normalized,
+          totalMarks,
+          grade: "",
+          gradePoints: 0,
+        },
       };
     });
 
@@ -212,6 +233,7 @@ export async function GET(req: NextRequest) {
         code: course.code,
         creditHours: course.creditHours,
         department: course.department,
+        assessments,
       },
       totalSessions,
       rows,

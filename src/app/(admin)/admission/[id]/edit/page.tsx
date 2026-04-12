@@ -37,6 +37,7 @@ type Student = {
   program: string | null;
   status: string;
   paymentStatus: string;
+  fee: number | null;
   imageUrl: string | null;
   imagePublicId: string | null;
 };
@@ -155,6 +156,7 @@ export default function EditStudentPage() {
         program: student.program ?? "",
         status: student.status,
         paymentStatus: student.paymentStatus ?? "Fully Paid",
+        fee: student.fee != null ? String(student.fee) : "",
         imageUrl: student.imageUrl ?? "",
         imagePublicId: student.imagePublicId ?? "",
       };

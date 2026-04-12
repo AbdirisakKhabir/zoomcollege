@@ -67,6 +67,10 @@ export async function GET(req: NextRequest) {
             code: true,
             creditHours: true,
             department: { select: { id: true, name: true, code: true } },
+            assessments: {
+              orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+              select: { key: true, name: true, weightPercent: true, sortOrder: true },
+            },
           },
         },
       },

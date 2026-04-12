@@ -92,15 +92,15 @@ const AppHeader: React.FC = () => {
               width={154}
               height={32}
               className="object-contain dark:hidden"
-              src="/logo/logo%20abaarso.png"
-              alt="Abaarso Logo"
+              src="/logo/era-pre-university.png"
+              alt="Era Pre-University"
             />
             <Image
               width={154}
               height={32}
               className="hidden object-contain dark:block"
-              src="/logo/logo%20abaarso.png"
-              alt="Abaarso Logo"
+              src="/logo/era-pre-university.png"
+              alt="Era Pre-University"
             />
           </Link>
 

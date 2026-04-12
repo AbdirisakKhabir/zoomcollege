@@ -2,15 +2,49 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
-import { calculateTotal, getGradeInfo, getGradePointsFromGrade } from "@/lib/grades";
+import { calculateTotalFromScoreMap, getGradeInfo, getGradePointsFromGrade } from "@/lib/grades";
+import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
 
-/** Find column index by flexible header matching */
 function findCol(headerRow: string[], patterns: RegExp[]): number {
   for (const p of patterns) {
     const idx = headerRow.findIndex((h) => p.test(String(h).trim()));
     if (idx >= 0) return idx;
   }
   return -1;
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Resolve Excel column for a course assessment + legacy aliases. */
+function colIndexForAssessment(
+  headerRow: string[],
+  a: { name: string; key: string }
+): number {
+  const patterns: RegExp[] = [
+    new RegExp(`^${escapeRe(a.name)}\\s*(\\([0-9.]+%\\))?$`, "i"),
+    new RegExp(`^${escapeRe(a.key)}$`, "i"),
+  ];
+  if (a.key === "midExam") {
+    patterns.push(/^mid\s*term$/i, /^mid\s*exam/i, /^mid$/i);
+  }
+  if (a.key === "finalExam") {
+    patterns.push(/^final$/i, /^final\s*exam/i);
+  }
+  if (a.key === "assignment") {
+    patterns.push(/^assignment1$/i, /^assign1$/i, /^assignment$/i);
+  }
+  if (a.key === "project") {
+    patterns.push(/^assignment2$/i, /^assign2$/i);
+  }
+  if (a.key === "presentation") {
+    patterns.push(/^attendance$/i, /^attedance$/i);
+  }
+  if (a.key === "assessment") {
+    patterns.push(/^quiz$/i);
+  }
+  return findCol(headerRow, patterns);
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +85,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await seedDefaultAssessmentsIfEmpty(course.id);
+
+    const assessments = await prisma.courseAssessment.findMany({
+      where: { courseId: course.id },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    });
+
     const buf = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buf, { type: "buffer" });
     const sheetName = wb.SheetNames[0];
@@ -64,7 +105,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Auto-detect header row (some files have title rows before headers)
     let headerRow: string[] = [];
     let dataStartRow = 1;
     const studentIdPatterns = [/^id\s*card$/i, /^student\s*id$/i, /^studentid$/i];
@@ -83,7 +123,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Student ID: "ID Card", "Student ID", etc.
     const studentIdIdx = findCol(headerRow, studentIdPatterns);
     if (studentIdIdx < 0) {
       return NextResponse.json(
@@ -92,15 +131,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Assessment columns - all optional (empty = 0). Flexible matching for various formats.
-    const midIdx = findCol(headerRow, [/^mid\s*term$/i, /^mid\s*exam/i, /^mid$/i]);
-    const finalIdx = findCol(headerRow, [/^final$/i, /^final\s*exam/i]);
-    const quizIdx = findCol(headerRow, [/^quiz$/i]);
-    const assign2Idx = findCol(headerRow, [/^assignment2$/i, /^assign2$/i, /^group\s*presentation$/i]);
-    const assign1Idx = findCol(headerRow, [/^assignment1$/i, /^assignment$/i, /^assign1$/i]);
-    const attendanceIdx = findCol(headerRow, [/^attendance$/i, /^attedance$/i]);
+    const assessmentColIdx = assessments.map((a) => ({
+      key: a.key,
+      max: a.weightPercent,
+      idx: colIndexForAssessment(headerRow, a),
+    }));
 
-    // Pre-computed values from file - use when provided
     const totalIdx = findCol(headerRow, [/^total$/i]);
     const gradeIdx = findCol(headerRow, [/^grade$/i]);
     const gpaIdx = findCol(headerRow, [/^gpa$/i]);
@@ -126,22 +162,21 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Parse optional assessment columns - empty or missing = 0. No mark validations - allow any values.
-      const mid = parseNum(row[midIdx]);
-      const final = parseNum(row[finalIdx]);
-      const quiz = parseNum(row[quizIdx]);
-      const assign2 = parseNum(row[assign2Idx]);
-      const assign1 = parseNum(row[assign1Idx]);
-      const attendance = parseNum(row[attendanceIdx]);
-
-      const marks = {
-        midExam: mid,
-        finalExam: final,
-        assessment: quiz,
-        project: assign2,
-        assignment: assign1,
-        presentation: attendance,
-      };
+      const scores: Record<string, number> = {};
+      let rowInvalid = false;
+      for (const ac of assessmentColIdx) {
+        const raw = ac.idx >= 0 ? row[ac.idx] : "";
+        const n = parseNum(raw);
+        if (n < 0 || n > ac.max + 1e-6) {
+          errors.push(
+            `Row ${i + 1}: ${ac.key} must be between 0 and ${ac.max}`
+          );
+          rowInvalid = true;
+          break;
+        }
+        scores[ac.key] = n;
+      }
+      if (rowInvalid) continue;
 
       let totalMarks: number;
       let grade: string;
@@ -151,9 +186,8 @@ export async function POST(req: NextRequest) {
       const fileGrade = gradeIdx >= 0 ? String(row[gradeIdx] ?? "").trim() : "";
       const fileGpa = gpaIdx >= 0 ? parseNumOrNull(row[gpaIdx]) : null;
 
-      // Use Total from file when provided; otherwise calculate from components
       totalMarks =
-        fileTotal !== null && fileTotal >= 0 ? fileTotal : calculateTotal(marks);
+        fileTotal !== null && fileTotal >= 0 ? fileTotal : calculateTotalFromScoreMap(scores);
 
       if (fileGrade && /^[A-D][+-]?|F$/i.test(fileGrade)) {
         grade = fileGrade.toUpperCase().replace(/^([A-D])$/, "$1");
@@ -179,7 +213,7 @@ export async function POST(req: NextRequest) {
       if (existing) {
         await prisma.examRecord.update({
           where: { id: existing.id },
-          data: { ...marks, totalMarks, grade, gradePoints, status: "draft" },
+          data: { scores, totalMarks, grade, gradePoints, status: "draft" },
         });
         updated.push(existing.id);
       } else {
@@ -189,7 +223,7 @@ export async function POST(req: NextRequest) {
             courseId: course.id,
             semester: cls.semester,
             year: cls.year,
-            ...marks,
+            scores,
             totalMarks,
             grade,
             gradePoints,

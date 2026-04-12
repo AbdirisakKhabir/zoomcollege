@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { computeAttendanceMarks } from "@/lib/attendance";
 import { getSemesterDateRange } from "@/lib/semester-dates";
+import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
 
 export async function GET(req: NextRequest) {
   try {
@@ -41,14 +42,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Same roster source as record-class: admitted students assigned to this class only
+    await seedDefaultAssessmentsIfEmpty(course.id);
+
+    const assessments = await prisma.courseAssessment.findMany({
+      where: { courseId: course.id },
+      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    });
+
     const students = await prisma.student.findMany({
       where: { classId: Number(classId), status: "Admitted" },
       select: { id: true, studentId: true, firstName: true, lastName: true },
       orderBy: [{ studentId: "asc" }],
     });
 
-    // Compute attendance marks (0-10) for each student - semester-filtered
     const { start, end } = getSemesterDateRange(cls.semester, cls.year);
     const sessions = await prisma.attendanceSession.findMany({
       where: { classId: Number(classId), date: { gte: start, lte: end } },
@@ -56,15 +62,16 @@ export async function GET(req: NextRequest) {
     });
     const sessionIds = sessions.map((s) => s.id);
     const totalSessions = sessionIds.length;
-    const attendanceRecords = totalSessions > 0
-      ? await prisma.attendanceRecord.findMany({
-          where: {
-            sessionId: { in: sessionIds },
-            studentId: { in: students.map((s) => s.id) },
-          },
-          select: { studentId: true, status: true },
-        })
-      : [];
+    const attendanceRecords =
+      totalSessions > 0
+        ? await prisma.attendanceRecord.findMany({
+            where: {
+              sessionId: { in: sessionIds },
+              studentId: { in: students.map((s) => s.id) },
+            },
+            select: { studentId: true, status: true },
+          })
+        : [];
     const byStudent = new Map<number, number>();
     for (const s of students) byStudent.set(s.id, 0);
     for (const r of attendanceRecords) {
@@ -73,15 +80,15 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Match ATU Berbera grade reporting form format (Assignment1, Assignment2 - no Quiz)
+    const assessmentHeaders = assessments.map(
+      (a) => `${a.name} (${a.weightPercent}%)`
+    );
+
     const headers = [
       "S/No",
       "ID Card",
       "Student's Name",
-      "Mid Term",
-      "Assignment2",
-      "Assignment1",
-      "final",
+      ...assessmentHeaders,
       "Attendance",
       "Total",
       "Grade",
@@ -91,14 +98,12 @@ export async function GET(req: NextRequest) {
     const rows = students.map((s, idx) => {
       const presentPlusExcused = byStudent.get(s.id) ?? 0;
       const attendanceMarks = computeAttendanceMarks(presentPlusExcused, totalSessions);
+      const blankAssess = assessments.map(() => "");
       return [
         idx + 1,
         s.studentId,
         `${s.firstName} ${s.lastName}`,
-        "",
-        "",
-        "",
-        "",
+        ...blankAssess,
         totalSessions > 0 ? attendanceMarks.toFixed(2) : "",
         "",
         "",
@@ -109,20 +114,17 @@ export async function GET(req: NextRequest) {
     const wsData = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-    // Set column widths
-    ws["!cols"] = [
+    const colWidths = [
       { wch: 6 },
       { wch: 14 },
       { wch: 28 },
-      { wch: 10 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 8 },
+      ...assessments.map(() => ({ wch: 14 })),
       { wch: 12 },
       { wch: 8 },
       { wch: 6 },
       { wch: 6 },
     ];
+    ws["!cols"] = colWidths;
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(

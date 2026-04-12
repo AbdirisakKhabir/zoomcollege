@@ -14,8 +14,8 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "Abaarso Tech University",
-  description: "Abaarso Tech University Admin Dashboard",
+  title: "Era Pre-University",
+  description: "Era Pre-University Admin Dashboard",
 };
 
 export default function RootLayout({

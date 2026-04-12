@@ -36,22 +36,13 @@ export const MARK_COMPONENTS = [
   { key: "presentation", label: "Presentation",   maxMarks: 10 },
 ] as const;
 
-export function calculateTotal(marks: {
-  midExam?: number | null;
-  finalExam?: number | null;
-  assessment?: number | null;
-  project?: number | null;
-  assignment?: number | null;
-  presentation?: number | null;
-}): number {
-  return (
-    (marks.midExam || 0) +
-    (marks.finalExam || 0) +
-    (marks.assessment || 0) +
-    (marks.project || 0) +
-    (marks.assignment || 0) +
-    (marks.presentation || 0)
-  );
+/** Sum of numeric values in a scores map (course assessment marks). */
+export function calculateTotalFromScoreMap(scores: Record<string, number>): number {
+  let t = 0;
+  for (const v of Object.values(scores)) {
+    t += v ?? 0;
+  }
+  return Math.round(t * 100) / 100;
 }
 
 export function getGradeInfo(totalMarks: number): GradeInfo {

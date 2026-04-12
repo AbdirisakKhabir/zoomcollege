@@ -38,12 +38,7 @@ type RowData = {
     courseId: number;
     courseCode: string;
     courseName: string;
-    midExam: number;
-    finalExam: number;
-    assessment: number;
-    project: number;
-    assignment: number;
-    presentation: number;
+    scores: Record<string, number>;
     totalMarks: number;
     grade: string;
     gradePoints: number;

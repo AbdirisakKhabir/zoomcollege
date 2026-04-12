@@ -3,12 +3,14 @@
  * Customize these values to match your institution.
  */
 export const TRANSCRIPT_BRAND = {
-  universityName: "Abaarso Tech University",
+  universityName: "Era Pre-University",
   officeTitle: "Office of the Registrar",
   documentTitle: "Student's Cumulative Record and Partial Transcript",
   email: "registrar@abaarsotech.edu",
   website: "www.abaarsotech.edu",
-  logoUrl: "/logo/logo%20abaarso.png",
+  /** Shown on payment receipts and similar printouts */
+  contactPhone: "+252 63 3571625",
+  logoUrl: "/logo/era-pre-university.png",
   /** Background only on the Academic Year / Semester bar (tables stay white) */
   semesterBandBg: "#9e0539",
   semesterBandText: "#FFFFFF",

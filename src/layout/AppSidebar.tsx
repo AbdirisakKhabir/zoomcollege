@@ -82,12 +82,6 @@ const academicsItems: NavItem[] = [
     permission: "classes.view",
   },
   {
-    icon: <TimeIcon />,
-    name: "Schedule",
-    path: "/schedule",
-    permission: "schedule.view",
-  },
-  {
     icon: <UserCircleIcon />,
     name: "Lecturers",
     path: "/lecturers",
@@ -127,7 +121,9 @@ const academicsItems: NavItem[] = [
     path: "/finance",
     permission: "finance.view",
     subItems: [
-      { name: "Record Payment", path: "/finance", permission: "finance.view" },
+      { name: "Finance home", path: "/finance", permission: "finance.view" },
+      { name: "Collect monthly fee", path: "/finance/collect-monthly-fee", permission: "finance.view" },
+      { name: "Monthly invoice", path: "/finance/monthly-invoice", permission: "finance.view" },
       { name: "Payments", path: "/finance/payments", permission: "finance.view" },
       { name: "Banks", path: "/finance/banks", permission: "banks.view" },
       { name: "Expenses", path: "/finance/expenses", permission: "expenses.view" },
@@ -431,8 +427,8 @@ const AppSidebar: React.FC = () => {
       >
         <Link href="/" className={`flex items-center gap-2 ${!isExpanded && !isHovered && !isMobileOpen ? "lg:justify-center" : ""}`}>
           <Image
-            src="/logo/logo%20abaarso.png"
-            alt="ATU Berbera"
+            src="/logo/era-pre-university.png"
+            alt="Era Pre-University"
             width={48}
             height={48}
             priority
@@ -440,7 +436,7 @@ const AppSidebar: React.FC = () => {
           />
           {(isExpanded || isHovered || isMobileOpen) && (
             <span className="text-sm font-semibold text-gray-800 dark:text-white/90 whitespace-nowrap">
-              ABAARSO TECH UNIVERSITY
+              ERA PRE-UNIVERSITY
             </span>
           )}
         </Link>

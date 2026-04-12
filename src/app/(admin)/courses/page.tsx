@@ -59,6 +59,13 @@ export default function CoursesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
+  const [assessModalOpen, setAssessModalOpen] = useState(false);
+  const [assessCourse, setAssessCourse] = useState<CourseRow | null>(null);
+  const [assessItems, setAssessItems] = useState<{ name: string; key: string; weightPercent: string }[]>([]);
+  const [assessLoading, setAssessLoading] = useState(false);
+  const [assessSaving, setAssessSaving] = useState(false);
+  const [assessError, setAssessError] = useState("");
+
   const {
     page,
     setPage,
@@ -282,6 +289,70 @@ export default function CoursesPage() {
     setImportFile(null);
     setImportDepartmentId(departments[0] ? String(departments[0].id) : "");
     setImportResult(null);
+  }
+
+  async function openAssessments(c: CourseRow) {
+    setAssessCourse(c);
+    setAssessModalOpen(true);
+    setAssessError("");
+    setAssessLoading(true);
+    try {
+      const res = await authFetch(`/api/courses/${c.id}/assessments`);
+      const data = res.ok ? await res.json() : null;
+      const items = data?.assessments ?? [];
+      setAssessItems(
+        items.map((x: { name: string; key: string; weightPercent: number }) => ({
+          name: x.name,
+          key: x.key,
+          weightPercent: String(x.weightPercent),
+        }))
+      );
+    } catch {
+      setAssessError("Failed to load assessments.");
+      setAssessItems([]);
+    }
+    setAssessLoading(false);
+  }
+
+  async function saveAssessments(e: React.FormEvent) {
+    e.preventDefault();
+    if (!assessCourse) return;
+    setAssessError("");
+    const items = assessItems.map((it) => ({
+      name: it.name.trim(),
+      key: it.key.trim(),
+      weightPercent: Number(it.weightPercent),
+    }));
+    const sum = items.reduce((s, x) => s + (Number.isFinite(x.weightPercent) ? x.weightPercent : 0), 0);
+    if (Math.abs(sum - 100) > 0.01) {
+      setAssessError(`Weights must sum to 100%. Current total: ${sum.toFixed(2)}%`);
+      return;
+    }
+    for (const it of items) {
+      if (!it.name || !it.key) {
+        setAssessError("Each row needs a name and a key.");
+        return;
+      }
+    }
+    setAssessSaving(true);
+    try {
+      const res = await authFetch(`/api/courses/${assessCourse.id}/assessments`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAssessError(data.error || "Failed to save");
+        setAssessSaving(false);
+        return;
+      }
+      setAssessModalOpen(false);
+      setAssessCourse(null);
+    } catch {
+      setAssessError("Network error");
+    }
+    setAssessSaving(false);
   }
 
   async function handleDownloadTemplate() {
@@ -547,14 +618,24 @@ export default function CoursesPage() {
                   <TableCell className="text-right">
                     <div className="inline-flex items-center gap-1">
                       {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() => openEdit(c)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-500 dark:hover:bg-brand-500/10"
-                          aria-label="Edit"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openAssessments(c)}
+                            className="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-lg px-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-500/10 dark:text-gray-400"
+                            title="Course assessments (weights)"
+                          >
+                            %
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(c)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-500 dark:hover:bg-brand-500/10"
+                            aria-label="Edit"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                       {canDelete && (
                         <button
@@ -587,6 +668,120 @@ export default function CoursesPage() {
           </>
         )}
       </div>
+
+      {/* Course assessments (grading weights) */}
+      {assessModalOpen && assessCourse && (
+        <ModalOverlayGate>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">Course assessments</h2>
+                <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
+                  {assessCourse.code} — weights must total 100%.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setAssessModalOpen(false); setAssessCourse(null); }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={saveAssessments} className="px-6 py-5">
+              {assessLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+                </div>
+              ) : (
+                <>
+                  {assessError && (
+                    <div className="mb-4 rounded-lg bg-error-50 px-4 py-3 text-sm text-error-600 dark:bg-error-500/10 dark:text-error-400">
+                      {assessError}
+                    </div>
+                  )}
+                  <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                    Key: stable identifier for imports and records (letters, numbers, underscore). Max marks per component equals its weight.
+                  </p>
+                  <div className="space-y-2">
+                    {assessItems.map((row, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2">
+                        <input
+                          className="col-span-5 rounded-lg border border-gray-200 px-2 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                          placeholder="Name (e.g. Mid Exam)"
+                          value={row.name}
+                          onChange={(e) => {
+                            const next = [...assessItems];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setAssessItems(next);
+                          }}
+                        />
+                        <input
+                          className="col-span-3 rounded-lg border border-gray-200 px-2 py-2 font-mono text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                          placeholder="key"
+                          value={row.key}
+                          onChange={(e) => {
+                            const next = [...assessItems];
+                            next[idx] = { ...next[idx], key: e.target.value };
+                            setAssessItems(next);
+                          }}
+                        />
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          className="col-span-3 rounded-lg border border-gray-200 px-2 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                          placeholder="%"
+                          value={row.weightPercent}
+                          onChange={(e) => {
+                            const next = [...assessItems];
+                            next[idx] = { ...next[idx], weightPercent: e.target.value };
+                            setAssessItems(next);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="col-span-1 rounded-lg text-error-500 hover:bg-error-50 dark:hover:bg-error-500/10"
+                          onClick={() => setAssessItems(assessItems.filter((_, i) => i !== idx))}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-3 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+                    onClick={() => setAssessItems([...assessItems, { name: "", key: "", weightPercent: "0" }])}
+                  >
+                    + Add component
+                  </button>
+                  <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Total:{" "}
+                      <strong>
+                        {assessItems.reduce((s, x) => s + (parseFloat(x.weightPercent) || 0), 0).toFixed(2)}%
+                      </strong>
+                    </span>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => { setAssessModalOpen(false); setAssessCourse(null); }}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" size="sm" disabled={assessSaving}>
+                        {assessSaving ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </form>
+          </div>
+        </div>
+        </ModalOverlayGate>
+      )}
 
       {/* Import Modal */}
       {modal === "import" && (

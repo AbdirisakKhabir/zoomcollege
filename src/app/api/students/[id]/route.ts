@@ -112,6 +112,17 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       const b = Number(body.balance);
       data.balance = !Number.isNaN(b) ? Math.max(0, b) : undefined;
     }
+    if (body.fee !== undefined) {
+      if (body.fee === null || body.fee === "") {
+        data.fee = null;
+      } else {
+        const f = Number(body.fee);
+        if (Number.isNaN(f) || f < 0) {
+          return NextResponse.json({ error: "Invalid fee" }, { status: 400 });
+        }
+        data.fee = f;
+      }
+    }
 
     // Handle image update: if new image provided, delete old one from Cloudinary
     if (body.imageUrl !== undefined) {

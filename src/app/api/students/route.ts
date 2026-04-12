@@ -139,6 +139,7 @@ export async function POST(req: NextRequest) {
       imagePublicId,
       status,
       paymentStatus,
+      fee: feeBody,
     } = body;
 
     const parsedDeptId = Number(departmentId);
@@ -217,6 +218,15 @@ export async function POST(req: NextRequest) {
       : ps === "Half Scholar" ? tuitionFee * 0.5
       : tuitionFee;
 
+    let feeVal: number | null = null;
+    if (feeBody !== undefined && feeBody !== null && String(feeBody).trim() !== "") {
+      const f = Number(feeBody);
+      if (Number.isNaN(f) || f < 0) {
+        return NextResponse.json({ error: "Invalid fee" }, { status: 400 });
+      }
+      feeVal = f;
+    }
+
     const student = await prisma.student.create({
       data: {
         studentId,
@@ -237,6 +247,7 @@ export async function POST(req: NextRequest) {
         imagePublicId: imagePublicId || null,
         status: status || "Admitted",
         paymentStatus: ps,
+        fee: feeVal,
         balance: initialBalance,
       },
       include: {

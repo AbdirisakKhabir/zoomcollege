@@ -31,12 +31,21 @@ type ClassInfo = {
   course: { id: number; name: string; code: string; department?: { id: number; name: string; code: string } };
 };
 
+type CourseAssessmentInfo = {
+  id: number;
+  name: string;
+  key: string;
+  weightPercent: number;
+  sortOrder: number;
+};
+
 type CourseInfo = {
   id: number;
   name: string;
   code: string;
   creditHours: number;
   department?: { id: number; name: string; code: string };
+  assessments?: CourseAssessmentInfo[];
 };
 
 type StudentInfo = {
@@ -55,12 +64,7 @@ type ExamRecord = {
   courseId: number;
   semester: string;
   year: number;
-  midExam: number | null;
-  finalExam: number | null;
-  assessment: number | null;
-  project: number | null;
-  assignment: number | null;
-  presentation: number | null;
+  scores: Record<string, number> | null;
   totalMarks: number;
   grade: string | null;
   gradePoints: number | null;
@@ -101,6 +105,15 @@ const GRADE_COLORS: Record<string, "success" | "primary" | "warning" | "error" |
 
 type SemesterOption = { id: number; name: string; sortOrder: number; isActive: boolean };
 
+function formatScoreBreakdown(
+  scores: Record<string, number> | null | undefined,
+  assessments: CourseAssessmentInfo[] | undefined
+): string {
+  if (!scores || !assessments?.length) return "—";
+  const list = [...assessments].sort((a, b) => a.sortOrder - b.sortOrder);
+  return list.map((a) => `${a.name.slice(0, 12)}:${scores[a.key] ?? 0}`).join(" · ");
+}
+
 export default function ExaminationsPage() {
   const { hasPermission } = useAuth();
   const [records, setRecords] = useState<ExamRecord[]>([]);
@@ -134,12 +147,9 @@ export default function ExaminationsPage() {
     courseId: "",
     semester: "",
     year: new Date().getFullYear().toString(),
-    midExam: "",
-    finalExam: "",
-    project: "",
-    assignment: "",
-    presentation: "",
   });
+  const [scoreForm, setScoreForm] = useState<Record<string, string>>({});
+  const [courseAssessments, setCourseAssessments] = useState<CourseAssessmentInfo[]>([]);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
@@ -218,6 +228,32 @@ export default function ExaminationsPage() {
     }
   }, [semesters]);
 
+  useEffect(() => {
+    if (!showModal || !form.courseId) {
+      setCourseAssessments([]);
+      return;
+    }
+    const id = Number(form.courseId);
+    authFetch(`/api/courses/${id}/assessments`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCourseAssessments(Array.isArray(d?.assessments) ? d.assessments : []))
+      .catch(() => setCourseAssessments([]));
+  }, [showModal, form.courseId]);
+
+  useEffect(() => {
+    if (!showModal || courseAssessments.length === 0) return;
+    if (editingRecord) {
+      const sc = (editingRecord.scores as Record<string, number>) || {};
+      setScoreForm(
+        Object.fromEntries(courseAssessments.map((a) => [a.key, String(sc[a.key] ?? 0)]))
+      );
+    } else {
+      setScoreForm(
+        Object.fromEntries(courseAssessments.map((a) => [a.key, "0"]))
+      );
+    }
+  }, [showModal, courseAssessments, editingRecord?.id, form.courseId]);
+
   // Filtered records
   const filtered = records.filter((r) => {
     const searchLower = search.toLowerCase();
@@ -251,11 +287,6 @@ export default function ExaminationsPage() {
       courseId: r.courseId.toString(),
       semester: r.semester,
       year: r.year.toString(),
-      midExam: (r.midExam || 0).toString(),
-      finalExam: (r.finalExam || 0).toString(),
-      project: (r.project || 0).toString(),
-      assignment: (r.assignment || 0).toString(),
-      presentation: (r.presentation || 0).toString(),
     });
     setFormError("");
     setShowModal(true);
@@ -265,21 +296,22 @@ export default function ExaminationsPage() {
     setSaving(true);
     setFormError("");
     try {
-      const payload = {
-        studentId: Number(form.studentId),
-        courseId: Number(form.courseId),
-        semester: form.semester,
-        year: Number(form.year),
-        midExam: Number(form.midExam || 0),
-        finalExam: Number(form.finalExam || 0),
-        assessment: 0,
-        project: Number(form.project || 0),
-        assignment: Number(form.assignment || 0),
-        presentation: Number(form.presentation || 0),
-      };
+      const scores: Record<string, number> = {};
+      for (const a of courseAssessments) {
+        scores[a.key] = Number(scoreForm[a.key] || 0);
+      }
 
       const url = editingRecord ? `/api/examinations/${editingRecord.id}` : "/api/examinations";
       const method = editingRecord ? "PATCH" : "POST";
+      const payload = editingRecord
+        ? { scores }
+        : {
+            studentId: Number(form.studentId),
+            courseId: Number(form.courseId),
+            semester: form.semester,
+            year: Number(form.year),
+            scores,
+          };
 
       const res = await authFetch(url, {
         method,
@@ -324,13 +356,10 @@ export default function ExaminationsPage() {
     setGpaLoading(false);
   };
 
-  // Compute live total in form (no Quiz - Assignment1, Assignment2 only)
-  const liveTotal =
-    Number(form.midExam || 0) +
-    Number(form.finalExam || 0) +
-    Number(form.project || 0) +
-    Number(form.assignment || 0) +
-    Number(form.presentation || 0);
+  const liveTotal = courseAssessments.reduce(
+    (s, a) => s + Number(scoreForm[a.key] || 0),
+    0
+  );
 
   const getLiveGrade = (total: number) => {
     if (total >= 90) return "A";
@@ -430,11 +459,7 @@ export default function ExaminationsPage() {
                 <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Student</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Course</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Semester</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Mid /20</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Final /40</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Asg2 /10</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Asg1 /10</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Pres /10</TableCell>
+                <TableCell isHeader className="min-w-[200px] px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Components</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Total</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Grade</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">GP</TableCell>
@@ -444,7 +469,7 @@ export default function ExaminationsPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="px-5 py-10 text-center">
+                  <TableCell colSpan={9} className="px-5 py-10 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
                       <span className="text-sm text-gray-500">Loading...</span>
@@ -453,7 +478,7 @@ export default function ExaminationsPage() {
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                  <TableCell colSpan={9} className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                     No exam records found.
                   </TableCell>
                 </TableRow>
@@ -480,11 +505,12 @@ export default function ExaminationsPage() {
                     <TableCell className="px-5 py-3 text-center">
                       <Badge variant="light" color="info">{r.semester} {r.year}</Badge>
                     </TableCell>
-                    <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.midExam ?? 0}</TableCell>
-                    <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.finalExam ?? 0}</TableCell>
-                    <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.project ?? 0}</TableCell>
-                    <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.assignment ?? 0}</TableCell>
-                    <TableCell className="px-5 py-3 text-center text-sm text-gray-700 dark:text-gray-300">{r.presentation ?? 0}</TableCell>
+                    <TableCell className="max-w-[280px] px-5 py-3 text-left text-xs text-gray-600 dark:text-gray-400">
+                      {formatScoreBreakdown(
+                        (r.scores as Record<string, number>) || {},
+                        r.course.assessments
+                      )}
+                    </TableCell>
                     <TableCell className="px-5 py-3 text-center">
                       <span className="text-sm font-semibold text-gray-800 dark:text-white/90">{r.totalMarks}</span>
                     </TableCell>
@@ -608,78 +634,40 @@ export default function ExaminationsPage() {
               </div>
             </div>
 
-            {/* Mark Components */}
+            {/* Mark Components (from course assessment setup) */}
             <div className="mt-5">
               <h4 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Mark Components</h4>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Mid Exam <span className="text-gray-400">(/20)</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.5"
-                    value={form.midExam}
-                    onChange={(e) => setForm({ ...form, midExam: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:text-white/80"
-                  />
+              {courseAssessments.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">Select a course to load its assessment breakdown.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  {courseAssessments.map((a) => (
+                    <div key={a.key}>
+                      <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {a.name} <span className="text-gray-400">(max {a.weightPercent})</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={a.weightPercent}
+                        step={0.5}
+                        value={scoreForm[a.key] ?? ""}
+                        onChange={(e) =>
+                          setScoreForm((prev) => ({ ...prev, [a.key]: e.target.value }))
+                        }
+                        className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:text-white/80"
+                      />
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Final Exam <span className="text-gray-400">(/40)</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="40"
-                    step="0.5"
-                    value={form.finalExam}
-                    onChange={(e) => setForm({ ...form, finalExam: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:text-white/80"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Assignment 2 <span className="text-gray-400">(/10)</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    value={form.project}
-                    onChange={(e) => setForm({ ...form, project: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:text-white/80"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Assignment 1 <span className="text-gray-400">(/10)</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    value={form.assignment}
-                    onChange={(e) => setForm({ ...form, assignment: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:text-white/80"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">Presentation <span className="text-gray-400">(/10)</span></label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="10"
-                    step="0.5"
-                    value={form.presentation}
-                    onChange={(e) => setForm({ ...form, presentation: e.target.value })}
-                    className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:text-white/80"
-                  />
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Live Total & Grade Preview */}
             <div className="mt-5 flex items-center gap-6 rounded-xl bg-gray-50 px-5 py-3 dark:bg-white/5">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
-                <p className="text-2xl font-bold text-gray-800 dark:text-white/90">{liveTotal}<span className="text-sm font-normal text-gray-400">/90</span></p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-white/90">{liveTotal}<span className="text-sm font-normal text-gray-400">/100</span></p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Grade</p>

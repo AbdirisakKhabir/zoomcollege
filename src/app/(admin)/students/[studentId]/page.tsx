@@ -35,6 +35,7 @@ type StudentProfile = {
   program: string | null;
   status: string;
   paymentStatus: string;
+  fee: number | null;
   balance: number;
   admissionDate: string;
   tuitionPayments: { id: number; semester: string; year: number; amount: number; paidAt: string }[];
@@ -274,6 +275,15 @@ export default function StudentProfilePage() {
                 icon={DollarLineIcon}
                 label="Payment Status"
                 value={student.paymentStatus || "Fully Paid"}
+              />
+              <InfoRow
+                icon={DollarLineIcon}
+                label="Monthly fee"
+                value={
+                  student.fee != null
+                    ? `$${student.fee.toLocaleString()}`
+                    : `Dept default ($${(student.department.tuitionFee ?? 0).toLocaleString()})`
+                }
               />
               <InfoRow
                 icon={DollarLineIcon}

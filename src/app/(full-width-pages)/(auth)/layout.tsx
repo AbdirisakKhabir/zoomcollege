@@ -25,13 +25,13 @@ export default function AuthLayout({
                   <Image
                     width={200}
                     height={55}
-                    src="/logo/logo%20abaarso.png"
-                    alt="Logo"
+                    src="/logo/era-pre-university.png"
+                    alt="Era Pre-University"
                     className="object-contain"
                   />
                 </Link>
                 <p className="text-center text-gray-400 dark:text-white/60">
-                  Abaarso Tech University
+                  Era Pre-University
                 </p>
               </div>
             </div>

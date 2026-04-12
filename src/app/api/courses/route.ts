@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parsePaginationParams } from "@/lib/pagination";
+import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
 
 export async function GET(req: NextRequest) {
   try {
@@ -125,6 +126,8 @@ export async function POST(req: NextRequest) {
         department: { select: { id: true, name: true, code: true } },
       },
     });
+
+    await seedDefaultAssessmentsIfEmpty(course.id);
 
     return NextResponse.json(course);
   } catch (e: unknown) {

@@ -101,8 +101,8 @@ export default function SignUpForm() {
           <div className="mb-5 sm:mb-8">
             <Link href="/" className="inline-block mb-5">
               <Image
-                src="/logo/logo%20abaarso.png"
-                alt="Logo"
+                src="/logo/era-pre-university.png"
+                alt="Era Pre-University"
                 width={160}
                 height={44}
                 className="object-contain h-10 w-auto"

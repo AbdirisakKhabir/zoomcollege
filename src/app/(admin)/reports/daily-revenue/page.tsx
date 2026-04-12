@@ -118,6 +118,9 @@ export default function DailyRevenueReportPage() {
             <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Daily Revenue Summary</h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Semester tuition and monthly fee deposits, by date recorded.
+                </p>
                 <div className="rounded-xl bg-brand-50 px-5 py-3 dark:bg-brand-500/10">
                   <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Revenue: </span>
                   <span className="text-xl font-bold text-brand-600 dark:text-brand-400">
