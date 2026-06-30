@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
+// GET API IS HERE
 export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthUser(req);
