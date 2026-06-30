@@ -10,6 +10,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
+    "db:export-seed": "tsx scripts/export-seed-data.ts",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"
   },
