@@ -11,7 +11,9 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:export-seed": "tsx scripts/export-seed-data.ts",
-    "db:setup": "prisma migrate deploy && tsx prisma/seed.ts",
+    "db:setup": "tsx scripts/sync-database-schema.ts && tsx prisma/seed.ts",
+    "db:sync-schema": "tsx scripts/sync-database-schema.ts",
+    "db:baseline": "bash scripts/baseline-migrations.sh",
     "db:clone-remote": "tsx scripts/clone-database.ts",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"

@@ -12,10 +12,7 @@ if [ ! -f prisma/seed-data.json ]; then
   exit 1
 fi
 
-echo "Applying migrations..."
-npx prisma migrate deploy
-
-echo "Seeding database from prisma/seed-data.json..."
+echo "Syncing schema and seeding database..."
 npx prisma db seed
 
 echo "Database setup complete."
