@@ -20,6 +20,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   Shield,
+  Sparkles,
   Users,
 } from "lucide-react";
 
@@ -52,6 +53,12 @@ const academicsItems: NavItem[] = [
     name: "Dashboard",
     path: "/",
     permission: "dashboard.view",
+  },
+  {
+    icon: <Sparkles strokeWidth={1.8} />,
+    name: "AI Insights",
+    path: "/ai-insights",
+    permission: "reports.view",
   },
   {
     icon: <MessageCircle strokeWidth={1.8} />,
