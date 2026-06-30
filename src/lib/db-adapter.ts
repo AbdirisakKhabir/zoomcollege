@@ -1,15 +1,9 @@
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
-export function getDbAdapter() {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error("DATABASE_URL is not set");
-  }
-
-  const parsed = new URL(url);
+function parseDatabaseUrl(databaseUrl: string) {
+  const parsed = new URL(databaseUrl);
   const socket = parsed.searchParams.get("socket");
 
-  // Handle both TCP and Unix socket DB URLs.
   if (socket) {
     return new PrismaMariaDb({
       user: decodeURIComponent(parsed.username),
@@ -30,4 +24,12 @@ export function getDbAdapter() {
     connectTimeout: 15000,
     acquireTimeout: 15000,
   });
+}
+
+export function getDbAdapter(databaseUrl = process.env.DATABASE_URL) {
+  if (!databaseUrl) {
+    throw new Error("DATABASE_URL is not set");
+  }
+
+  return parseDatabaseUrl(databaseUrl);
 }

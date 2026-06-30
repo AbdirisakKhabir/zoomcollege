@@ -1,43 +1,13 @@
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PrismaClient } from "@prisma/client";
+import {
+  type SeedDataSnapshot,
+  getSnapshotRowCount,
+} from "./database-snapshot";
 
-export type SeedDataSnapshot = {
-  exportedAt: string;
-  permissions: Record<string, unknown>[];
-  roles: Record<string, unknown>[];
-  rolePermissions: Record<string, unknown>[];
-  academicYears: Record<string, unknown>[];
-  departments: Record<string, unknown>[];
-  banks: Record<string, unknown>[];
-  positions: Record<string, unknown>[];
-  lecturers: Record<string, unknown>[];
-  users: Record<string, unknown>[];
-  userDepartments: Record<string, unknown>[];
-  lecturerDepartments: Record<string, unknown>[];
-  courses: Record<string, unknown>[];
-  classes: Record<string, unknown>[];
-  lecturerCourses: Record<string, unknown>[];
-  classSchedules: Record<string, unknown>[];
-  courseAssessments: Record<string, unknown>[];
-  students: Record<string, unknown>[];
-  studentCases: Record<string, unknown>[];
-  attendanceSessions: Record<string, unknown>[];
-  attendanceRecords: Record<string, unknown>[];
-  tuitionPayments: Record<string, unknown>[];
-  studentMonthlyInvoices: Record<string, unknown>[];
-  studentMonthlyPayments: Record<string, unknown>[];
-  bankWithdrawals: Record<string, unknown>[];
-  bankTransfers: Record<string, unknown>[];
-  transactionHistory: Record<string, unknown>[];
-  expenses: Record<string, unknown>[];
-  employees: Record<string, unknown>[];
-  payrolls: Record<string, unknown>[];
-  examRecords: Record<string, unknown>[];
-  conversations: Record<string, unknown>[];
-  chatMessages: Record<string, unknown>[];
-  conversationReads: Record<string, unknown>[];
-};
+export type { SeedDataSnapshot } from "./database-snapshot";
+export { getSnapshotRowCount, getSnapshotCounts } from "./database-snapshot";
 
 export const SEED_DATA_PATH = resolve(process.cwd(), "prisma/seed-data.json");
 
@@ -45,6 +15,10 @@ export function loadSeedDataSnapshot(): SeedDataSnapshot | null {
   if (!existsSync(SEED_DATA_PATH)) return null;
   const raw = readFileSync(SEED_DATA_PATH, "utf8");
   return JSON.parse(raw) as SeedDataSnapshot;
+}
+
+export function saveSeedDataSnapshot(data: SeedDataSnapshot): void {
+  writeFileSync(SEED_DATA_PATH, JSON.stringify(data, null, 2), "utf8");
 }
 
 function asRows<T extends Record<string, unknown>>(rows: T[] | undefined): T[] {
@@ -63,6 +37,13 @@ async function resetAutoIncrement(
 }
 
 export async function seedFromDatabaseSnapshot(prisma: PrismaClient, data: SeedDataSnapshot) {
+  const totalRows = getSnapshotRowCount(data);
+  if (totalRows === 0 && process.env.FORCE_EMPTY_SEED !== "1") {
+    throw new Error(
+      "Refusing to seed: snapshot is empty. Export from a database that has data first. To wipe anyway, set FORCE_EMPTY_SEED=1."
+    );
+  }
+
   console.log(`Restoring database snapshot exported at ${data.exportedAt}`);
 
   await prisma.$executeRawUnsafe("SET FOREIGN_KEY_CHECKS = 0");

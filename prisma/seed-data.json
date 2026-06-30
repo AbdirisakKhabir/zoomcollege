@@ -1,0 +1,1720 @@
+{
+  "exportedAt": "2026-06-30T17:16:16.277Z",
+  "permissions": [
+    {
+      "id": 1,
+      "name": "users.view",
+      "description": "View users",
+      "module": "users"
+    },
+    {
+      "id": 2,
+      "name": "users.create",
+      "description": "Create users",
+      "module": "users"
+    },
+    {
+      "id": 3,
+      "name": "users.edit",
+      "description": "Edit users",
+      "module": "users"
+    },
+    {
+      "id": 4,
+      "name": "users.delete",
+      "description": "Delete users",
+      "module": "users"
+    },
+    {
+      "id": 5,
+      "name": "roles.view",
+      "description": "View roles",
+      "module": "roles"
+    },
+    {
+      "id": 6,
+      "name": "roles.create",
+      "description": "Create roles",
+      "module": "roles"
+    },
+    {
+      "id": 7,
+      "name": "roles.edit",
+      "description": "Edit roles",
+      "module": "roles"
+    },
+    {
+      "id": 8,
+      "name": "roles.delete",
+      "description": "Delete roles",
+      "module": "roles"
+    },
+    {
+      "id": 9,
+      "name": "permissions.view",
+      "description": "View permissions",
+      "module": "permissions"
+    },
+    {
+      "id": 10,
+      "name": "dashboard.view",
+      "description": "View dashboard",
+      "module": "dashboard"
+    },
+    {
+      "id": 11,
+      "name": "faculties.view",
+      "description": "View faculties",
+      "module": "faculties"
+    },
+    {
+      "id": 12,
+      "name": "faculties.create",
+      "description": "Create faculties",
+      "module": "faculties"
+    },
+    {
+      "id": 13,
+      "name": "faculties.edit",
+      "description": "Edit faculties",
+      "module": "faculties"
+    },
+    {
+      "id": 14,
+      "name": "faculties.delete",
+      "description": "Delete faculties",
+      "module": "faculties"
+    },
+    {
+      "id": 15,
+      "name": "departments.view",
+      "description": "View departments",
+      "module": "departments"
+    },
+    {
+      "id": 16,
+      "name": "departments.create",
+      "description": "Create departments",
+      "module": "departments"
+    },
+    {
+      "id": 17,
+      "name": "departments.edit",
+      "description": "Edit departments",
+      "module": "departments"
+    },
+    {
+      "id": 18,
+      "name": "departments.delete",
+      "description": "Delete departments",
+      "module": "departments"
+    },
+    {
+      "id": 19,
+      "name": "courses.view",
+      "description": "View courses",
+      "module": "courses"
+    },
+    {
+      "id": 20,
+      "name": "courses.create",
+      "description": "Create courses",
+      "module": "courses"
+    },
+    {
+      "id": 21,
+      "name": "courses.edit",
+      "description": "Edit courses",
+      "module": "courses"
+    },
+    {
+      "id": 22,
+      "name": "courses.delete",
+      "description": "Delete courses",
+      "module": "courses"
+    },
+    {
+      "id": 23,
+      "name": "classes.view",
+      "description": "View classes",
+      "module": "classes"
+    },
+    {
+      "id": 24,
+      "name": "classes.create",
+      "description": "Create classes",
+      "module": "classes"
+    },
+    {
+      "id": 25,
+      "name": "classes.edit",
+      "description": "Edit classes",
+      "module": "classes"
+    },
+    {
+      "id": 26,
+      "name": "classes.delete",
+      "description": "Delete classes",
+      "module": "classes"
+    },
+    {
+      "id": 27,
+      "name": "admission.view",
+      "description": "View student admissions",
+      "module": "admission"
+    },
+    {
+      "id": 28,
+      "name": "admission.create",
+      "description": "Create student admissions",
+      "module": "admission"
+    },
+    {
+      "id": 29,
+      "name": "admission.edit",
+      "description": "Edit student admissions",
+      "module": "admission"
+    },
+    {
+      "id": 30,
+      "name": "admission.delete",
+      "description": "Delete student admissions",
+      "module": "admission"
+    },
+    {
+      "id": 31,
+      "name": "attendance.view",
+      "description": "View attendance",
+      "module": "attendance"
+    },
+    {
+      "id": 32,
+      "name": "attendance.create",
+      "description": "Take attendance",
+      "module": "attendance"
+    },
+    {
+      "id": 33,
+      "name": "attendance.edit",
+      "description": "Edit attendance",
+      "module": "attendance"
+    },
+    {
+      "id": 34,
+      "name": "attendance.delete",
+      "description": "Delete attendance sessions",
+      "module": "attendance"
+    },
+    {
+      "id": 35,
+      "name": "examinations.view",
+      "description": "View examination records",
+      "module": "examinations"
+    },
+    {
+      "id": 36,
+      "name": "examinations.create",
+      "description": "Create examination records",
+      "module": "examinations"
+    },
+    {
+      "id": 37,
+      "name": "examinations.edit",
+      "description": "Edit examination records",
+      "module": "examinations"
+    },
+    {
+      "id": 38,
+      "name": "examinations.delete",
+      "description": "Delete examination records",
+      "module": "examinations"
+    },
+    {
+      "id": 39,
+      "name": "reports.view",
+      "description": "View reports",
+      "module": "reports"
+    },
+    {
+      "id": 40,
+      "name": "finance.view",
+      "description": "View finance",
+      "module": "finance"
+    },
+    {
+      "id": 41,
+      "name": "finance.create",
+      "description": "Record tuition payments",
+      "module": "finance"
+    },
+    {
+      "id": 42,
+      "name": "semesters.view",
+      "description": "View semesters",
+      "module": "semesters"
+    },
+    {
+      "id": 43,
+      "name": "semesters.create",
+      "description": "Create semesters",
+      "module": "semesters"
+    },
+    {
+      "id": 44,
+      "name": "semesters.edit",
+      "description": "Edit semesters",
+      "module": "semesters"
+    },
+    {
+      "id": 45,
+      "name": "semesters.delete",
+      "description": "Delete semesters",
+      "module": "semesters"
+    },
+    {
+      "id": 46,
+      "name": "lecturers.view",
+      "description": "View lecturers",
+      "module": "lecturers"
+    },
+    {
+      "id": 47,
+      "name": "lecturers.create",
+      "description": "Create lecturers",
+      "module": "lecturers"
+    },
+    {
+      "id": 48,
+      "name": "lecturers.edit",
+      "description": "Edit lecturers",
+      "module": "lecturers"
+    },
+    {
+      "id": 49,
+      "name": "lecturers.delete",
+      "description": "Delete lecturers",
+      "module": "lecturers"
+    },
+    {
+      "id": 50,
+      "name": "schedule.view",
+      "description": "View semester schedule",
+      "module": "schedule"
+    },
+    {
+      "id": 51,
+      "name": "schedule.create",
+      "description": "Create semester schedule",
+      "module": "schedule"
+    },
+    {
+      "id": 52,
+      "name": "schedule.edit",
+      "description": "Edit semester schedule",
+      "module": "schedule"
+    },
+    {
+      "id": 53,
+      "name": "schedule.delete",
+      "description": "Delete schedule slots",
+      "module": "schedule"
+    },
+    {
+      "id": 54,
+      "name": "hr.view",
+      "description": "View HR (employees, positions)",
+      "module": "hr"
+    },
+    {
+      "id": 55,
+      "name": "hr.create",
+      "description": "Create employees and positions",
+      "module": "hr"
+    },
+    {
+      "id": 56,
+      "name": "hr.edit",
+      "description": "Edit employees and positions",
+      "module": "hr"
+    },
+    {
+      "id": 57,
+      "name": "hr.delete",
+      "description": "Delete employees and positions",
+      "module": "hr"
+    },
+    {
+      "id": 58,
+      "name": "banks.view",
+      "description": "View banks and balances",
+      "module": "finance"
+    },
+    {
+      "id": 59,
+      "name": "banks.create",
+      "description": "Create banks",
+      "module": "finance"
+    },
+    {
+      "id": 60,
+      "name": "banks.edit",
+      "description": "Edit banks",
+      "module": "finance"
+    },
+    {
+      "id": 61,
+      "name": "banks.delete",
+      "description": "Delete banks",
+      "module": "finance"
+    },
+    {
+      "id": 62,
+      "name": "banks.withdraw",
+      "description": "Withdraw from bank",
+      "module": "finance"
+    },
+    {
+      "id": 63,
+      "name": "banks.transfer",
+      "description": "Transfer between banks",
+      "module": "finance"
+    },
+    {
+      "id": 64,
+      "name": "expenses.view",
+      "description": "View expenses",
+      "module": "finance"
+    },
+    {
+      "id": 65,
+      "name": "expenses.create",
+      "description": "Request expenses (Finance)",
+      "module": "finance"
+    },
+    {
+      "id": 66,
+      "name": "expenses.approve",
+      "description": "Approve or reject expenses (President)",
+      "module": "finance"
+    },
+    {
+      "id": 67,
+      "name": "payroll.view",
+      "description": "View payroll requests",
+      "module": "hr"
+    },
+    {
+      "id": 68,
+      "name": "payroll.create",
+      "description": "Request payroll (HR)",
+      "module": "hr"
+    },
+    {
+      "id": 69,
+      "name": "payroll.approve",
+      "description": "Approve or reject payroll (President)",
+      "module": "hr"
+    }
+  ],
+  "roles": [
+    {
+      "id": 1,
+      "name": "Admin",
+      "description": "Full system access"
+    },
+    {
+      "id": 2,
+      "name": "Finance",
+      "description": "Finance staff - record payments, request expenses"
+    },
+    {
+      "id": 3,
+      "name": "President",
+      "description": "University President - approve expenses"
+    },
+    {
+      "id": 4,
+      "name": "Dean",
+      "description": "Faculty Dean - academic oversight, manage departments and courses"
+    },
+    {
+      "id": 5,
+      "name": "Lecturer",
+      "description": "Teaching staff - take attendance, record exams"
+    },
+    {
+      "id": 6,
+      "name": "HR",
+      "description": "Human Resources - manage employees and positions"
+    },
+    {
+      "id": 7,
+      "name": "Admission",
+      "description": "Admission staff - manage student admissions, upgrades, transfers"
+    }
+  ],
+  "rolePermissions": [
+    {
+      "roleId": 1,
+      "permissionId": 1
+    },
+    {
+      "roleId": 1,
+      "permissionId": 2
+    },
+    {
+      "roleId": 1,
+      "permissionId": 3
+    },
+    {
+      "roleId": 1,
+      "permissionId": 4
+    },
+    {
+      "roleId": 1,
+      "permissionId": 5
+    },
+    {
+      "roleId": 1,
+      "permissionId": 6
+    },
+    {
+      "roleId": 1,
+      "permissionId": 7
+    },
+    {
+      "roleId": 1,
+      "permissionId": 8
+    },
+    {
+      "roleId": 1,
+      "permissionId": 9
+    },
+    {
+      "roleId": 1,
+      "permissionId": 10
+    },
+    {
+      "roleId": 2,
+      "permissionId": 10
+    },
+    {
+      "roleId": 3,
+      "permissionId": 10
+    },
+    {
+      "roleId": 4,
+      "permissionId": 10
+    },
+    {
+      "roleId": 5,
+      "permissionId": 10
+    },
+    {
+      "roleId": 6,
+      "permissionId": 10
+    },
+    {
+      "roleId": 7,
+      "permissionId": 10
+    },
+    {
+      "roleId": 1,
+      "permissionId": 11
+    },
+    {
+      "roleId": 4,
+      "permissionId": 11
+    },
+    {
+      "roleId": 1,
+      "permissionId": 12
+    },
+    {
+      "roleId": 1,
+      "permissionId": 13
+    },
+    {
+      "roleId": 4,
+      "permissionId": 13
+    },
+    {
+      "roleId": 1,
+      "permissionId": 14
+    },
+    {
+      "roleId": 1,
+      "permissionId": 15
+    },
+    {
+      "roleId": 4,
+      "permissionId": 15
+    },
+    {
+      "roleId": 7,
+      "permissionId": 15
+    },
+    {
+      "roleId": 1,
+      "permissionId": 16
+    },
+    {
+      "roleId": 1,
+      "permissionId": 17
+    },
+    {
+      "roleId": 4,
+      "permissionId": 17
+    },
+    {
+      "roleId": 1,
+      "permissionId": 18
+    },
+    {
+      "roleId": 1,
+      "permissionId": 19
+    },
+    {
+      "roleId": 4,
+      "permissionId": 19
+    },
+    {
+      "roleId": 1,
+      "permissionId": 20
+    },
+    {
+      "roleId": 1,
+      "permissionId": 21
+    },
+    {
+      "roleId": 4,
+      "permissionId": 21
+    },
+    {
+      "roleId": 1,
+      "permissionId": 22
+    },
+    {
+      "roleId": 1,
+      "permissionId": 23
+    },
+    {
+      "roleId": 4,
+      "permissionId": 23
+    },
+    {
+      "roleId": 5,
+      "permissionId": 23
+    },
+    {
+      "roleId": 7,
+      "permissionId": 23
+    },
+    {
+      "roleId": 1,
+      "permissionId": 24
+    },
+    {
+      "roleId": 1,
+      "permissionId": 25
+    },
+    {
+      "roleId": 4,
+      "permissionId": 25
+    },
+    {
+      "roleId": 1,
+      "permissionId": 26
+    },
+    {
+      "roleId": 1,
+      "permissionId": 27
+    },
+    {
+      "roleId": 4,
+      "permissionId": 27
+    },
+    {
+      "roleId": 7,
+      "permissionId": 27
+    },
+    {
+      "roleId": 1,
+      "permissionId": 28
+    },
+    {
+      "roleId": 7,
+      "permissionId": 28
+    },
+    {
+      "roleId": 1,
+      "permissionId": 29
+    },
+    {
+      "roleId": 7,
+      "permissionId": 29
+    },
+    {
+      "roleId": 1,
+      "permissionId": 30
+    },
+    {
+      "roleId": 7,
+      "permissionId": 30
+    },
+    {
+      "roleId": 1,
+      "permissionId": 31
+    },
+    {
+      "roleId": 4,
+      "permissionId": 31
+    },
+    {
+      "roleId": 5,
+      "permissionId": 31
+    },
+    {
+      "roleId": 1,
+      "permissionId": 32
+    },
+    {
+      "roleId": 5,
+      "permissionId": 32
+    },
+    {
+      "roleId": 1,
+      "permissionId": 33
+    },
+    {
+      "roleId": 5,
+      "permissionId": 33
+    },
+    {
+      "roleId": 1,
+      "permissionId": 34
+    },
+    {
+      "roleId": 1,
+      "permissionId": 35
+    },
+    {
+      "roleId": 4,
+      "permissionId": 35
+    },
+    {
+      "roleId": 5,
+      "permissionId": 35
+    },
+    {
+      "roleId": 1,
+      "permissionId": 36
+    },
+    {
+      "roleId": 5,
+      "permissionId": 36
+    },
+    {
+      "roleId": 1,
+      "permissionId": 37
+    },
+    {
+      "roleId": 5,
+      "permissionId": 37
+    },
+    {
+      "roleId": 1,
+      "permissionId": 38
+    },
+    {
+      "roleId": 1,
+      "permissionId": 39
+    },
+    {
+      "roleId": 2,
+      "permissionId": 39
+    },
+    {
+      "roleId": 3,
+      "permissionId": 39
+    },
+    {
+      "roleId": 4,
+      "permissionId": 39
+    },
+    {
+      "roleId": 1,
+      "permissionId": 40
+    },
+    {
+      "roleId": 2,
+      "permissionId": 40
+    },
+    {
+      "roleId": 3,
+      "permissionId": 40
+    },
+    {
+      "roleId": 1,
+      "permissionId": 41
+    },
+    {
+      "roleId": 2,
+      "permissionId": 41
+    },
+    {
+      "roleId": 1,
+      "permissionId": 42
+    },
+    {
+      "roleId": 4,
+      "permissionId": 42
+    },
+    {
+      "roleId": 1,
+      "permissionId": 43
+    },
+    {
+      "roleId": 1,
+      "permissionId": 44
+    },
+    {
+      "roleId": 1,
+      "permissionId": 45
+    },
+    {
+      "roleId": 1,
+      "permissionId": 46
+    },
+    {
+      "roleId": 4,
+      "permissionId": 46
+    },
+    {
+      "roleId": 5,
+      "permissionId": 46
+    },
+    {
+      "roleId": 1,
+      "permissionId": 47
+    },
+    {
+      "roleId": 1,
+      "permissionId": 48
+    },
+    {
+      "roleId": 4,
+      "permissionId": 48
+    },
+    {
+      "roleId": 1,
+      "permissionId": 49
+    },
+    {
+      "roleId": 1,
+      "permissionId": 50
+    },
+    {
+      "roleId": 4,
+      "permissionId": 50
+    },
+    {
+      "roleId": 5,
+      "permissionId": 50
+    },
+    {
+      "roleId": 1,
+      "permissionId": 51
+    },
+    {
+      "roleId": 1,
+      "permissionId": 52
+    },
+    {
+      "roleId": 4,
+      "permissionId": 52
+    },
+    {
+      "roleId": 1,
+      "permissionId": 53
+    },
+    {
+      "roleId": 1,
+      "permissionId": 54
+    },
+    {
+      "roleId": 6,
+      "permissionId": 54
+    },
+    {
+      "roleId": 1,
+      "permissionId": 55
+    },
+    {
+      "roleId": 6,
+      "permissionId": 55
+    },
+    {
+      "roleId": 1,
+      "permissionId": 56
+    },
+    {
+      "roleId": 6,
+      "permissionId": 56
+    },
+    {
+      "roleId": 1,
+      "permissionId": 57
+    },
+    {
+      "roleId": 6,
+      "permissionId": 57
+    },
+    {
+      "roleId": 1,
+      "permissionId": 58
+    },
+    {
+      "roleId": 2,
+      "permissionId": 58
+    },
+    {
+      "roleId": 3,
+      "permissionId": 58
+    },
+    {
+      "roleId": 1,
+      "permissionId": 59
+    },
+    {
+      "roleId": 1,
+      "permissionId": 60
+    },
+    {
+      "roleId": 1,
+      "permissionId": 61
+    },
+    {
+      "roleId": 1,
+      "permissionId": 62
+    },
+    {
+      "roleId": 2,
+      "permissionId": 62
+    },
+    {
+      "roleId": 1,
+      "permissionId": 63
+    },
+    {
+      "roleId": 2,
+      "permissionId": 63
+    },
+    {
+      "roleId": 1,
+      "permissionId": 64
+    },
+    {
+      "roleId": 2,
+      "permissionId": 64
+    },
+    {
+      "roleId": 3,
+      "permissionId": 64
+    },
+    {
+      "roleId": 1,
+      "permissionId": 65
+    },
+    {
+      "roleId": 2,
+      "permissionId": 65
+    },
+    {
+      "roleId": 1,
+      "permissionId": 66
+    },
+    {
+      "roleId": 3,
+      "permissionId": 66
+    },
+    {
+      "roleId": 1,
+      "permissionId": 67
+    },
+    {
+      "roleId": 3,
+      "permissionId": 67
+    },
+    {
+      "roleId": 6,
+      "permissionId": 67
+    },
+    {
+      "roleId": 1,
+      "permissionId": 68
+    },
+    {
+      "roleId": 6,
+      "permissionId": 68
+    },
+    {
+      "roleId": 1,
+      "permissionId": 69
+    },
+    {
+      "roleId": 3,
+      "permissionId": 69
+    }
+  ],
+  "academicYears": [
+    {
+      "id": 1,
+      "startYear": 2015,
+      "endYear": 2016,
+      "name": "2015-2016",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.455Z",
+      "updatedAt": "2026-06-20T13:53:25.455Z"
+    },
+    {
+      "id": 2,
+      "startYear": 2016,
+      "endYear": 2017,
+      "name": "2016-2017",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.459Z",
+      "updatedAt": "2026-06-20T13:53:25.459Z"
+    },
+    {
+      "id": 3,
+      "startYear": 2017,
+      "endYear": 2018,
+      "name": "2017-2018",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.461Z",
+      "updatedAt": "2026-06-20T13:53:25.461Z"
+    },
+    {
+      "id": 4,
+      "startYear": 2018,
+      "endYear": 2019,
+      "name": "2018-2019",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.463Z",
+      "updatedAt": "2026-06-20T13:53:25.463Z"
+    },
+    {
+      "id": 5,
+      "startYear": 2019,
+      "endYear": 2020,
+      "name": "2019-2020",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.465Z",
+      "updatedAt": "2026-06-20T13:53:25.465Z"
+    },
+    {
+      "id": 6,
+      "startYear": 2020,
+      "endYear": 2021,
+      "name": "2020-2021",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.467Z",
+      "updatedAt": "2026-06-20T13:53:25.467Z"
+    },
+    {
+      "id": 7,
+      "startYear": 2021,
+      "endYear": 2022,
+      "name": "2021-2022",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.469Z",
+      "updatedAt": "2026-06-20T13:53:25.469Z"
+    },
+    {
+      "id": 8,
+      "startYear": 2022,
+      "endYear": 2023,
+      "name": "2022-2023",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.470Z",
+      "updatedAt": "2026-06-20T13:53:25.470Z"
+    },
+    {
+      "id": 9,
+      "startYear": 2023,
+      "endYear": 2024,
+      "name": "2023-2024",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.472Z",
+      "updatedAt": "2026-06-20T13:53:25.472Z"
+    },
+    {
+      "id": 10,
+      "startYear": 2024,
+      "endYear": 2025,
+      "name": "2024-2025",
+      "isActive": false,
+      "createdAt": "2026-06-20T13:53:25.473Z",
+      "updatedAt": "2026-06-20T13:53:25.473Z"
+    },
+    {
+      "id": 11,
+      "startYear": 2025,
+      "endYear": 2026,
+      "name": "2025-2026",
+      "isActive": true,
+      "createdAt": "2026-06-20T13:53:25.475Z",
+      "updatedAt": "2026-06-20T13:53:25.475Z"
+    }
+  ],
+  "departments": [
+    {
+      "id": 1,
+      "name": "OFFICE DEPARTMENT",
+      "code": "OFFICE",
+      "description": null,
+      "registrationFee": 5,
+      "isActive": true,
+      "createdAt": "2026-06-20T13:53:25.659Z",
+      "updatedAt": "2026-06-21T15:12:22.247Z"
+    },
+    {
+      "id": 3,
+      "name": "ICT DEPARTMENT",
+      "code": "ICT",
+      "description": null,
+      "registrationFee": 5,
+      "isActive": true,
+      "createdAt": "2026-06-20T13:53:25.663Z",
+      "updatedAt": "2026-06-21T15:12:18.134Z"
+    },
+    {
+      "id": 4,
+      "name": "ADVANCED ICT",
+      "code": "ADVANCED",
+      "description": null,
+      "registrationFee": 5,
+      "isActive": true,
+      "createdAt": "2026-06-20T13:53:25.664Z",
+      "updatedAt": "2026-06-21T15:11:53.289Z"
+    }
+  ],
+  "banks": [
+    {
+      "id": 1,
+      "name": "Main Bank Account",
+      "code": "MAIN-001",
+      "accountNumber": null,
+      "balance": 30,
+      "isActive": true,
+      "createdAt": "2026-06-20T13:53:25.451Z",
+      "updatedAt": "2026-06-21T14:14:32.522Z"
+    },
+    {
+      "id": 2,
+      "name": "ZAAD",
+      "code": "ZAAD",
+      "accountNumber": null,
+      "balance": 10,
+      "isActive": true,
+      "createdAt": "2026-06-21T14:15:45.793Z",
+      "updatedAt": "2026-06-21T15:22:18.795Z"
+    },
+    {
+      "id": 3,
+      "name": "Edahab",
+      "code": "EDAHAB",
+      "accountNumber": null,
+      "balance": 0,
+      "isActive": true,
+      "createdAt": "2026-06-21T14:15:53.259Z",
+      "updatedAt": "2026-06-21T14:15:53.259Z"
+    },
+    {
+      "id": 4,
+      "name": "Dahabshiil Bank",
+      "code": "DHB",
+      "accountNumber": null,
+      "balance": 25,
+      "isActive": true,
+      "createdAt": "2026-06-21T14:16:13.018Z",
+      "updatedAt": "2026-06-30T16:30:50.418Z"
+    },
+    {
+      "id": 5,
+      "name": "Darasalam Bank",
+      "code": "DSB",
+      "accountNumber": null,
+      "balance": 0,
+      "isActive": true,
+      "createdAt": "2026-06-21T14:16:54.466Z",
+      "updatedAt": "2026-06-21T14:16:54.466Z"
+    }
+  ],
+  "positions": [],
+  "lecturers": [],
+  "users": [
+    {
+      "id": 1,
+      "email": "admin@zoomcollege.edu",
+      "password": "$2b$10$uHsKVbcHTaXf2KkTq5krCODrg9gfquYUYsZglCUQjX.SwgvKpmUXm",
+      "name": "System Admin",
+      "imageUrl": null,
+      "imagePublicId": null,
+      "roleId": 1,
+      "isSuperAdmin": true,
+      "isActive": true,
+      "createdAt": "2026-06-20T13:53:25.561Z",
+      "updatedAt": "2026-06-20T13:53:25.561Z"
+    },
+    {
+      "id": 2,
+      "email": "admission@zoomcollege.com",
+      "password": "$2b$10$HTkVl1rNl7Kr3ehnhDv9NOSokE.MonBFZuDQXhnw..Td7aQHmLYCy",
+      "name": "Admission",
+      "imageUrl": null,
+      "imagePublicId": null,
+      "roleId": 7,
+      "isSuperAdmin": false,
+      "isActive": true,
+      "createdAt": "2026-06-21T13:49:07.306Z",
+      "updatedAt": "2026-06-21T13:49:07.306Z"
+    }
+  ],
+  "userDepartments": [
+    {
+      "userId": 2,
+      "departmentId": 3,
+      "roleId": 7,
+      "createdAt": "2026-06-21T13:49:07.322Z",
+      "updatedAt": "2026-06-21T13:49:07.322Z"
+    }
+  ],
+  "lecturerDepartments": [],
+  "courses": [
+    {
+      "id": 1,
+      "name": "Web Development",
+      "code": "WBD12",
+      "description": null,
+      "creditHours": 3,
+      "departmentId": 3,
+      "isActive": true,
+      "createdAt": "2026-06-21T13:53:58.554Z",
+      "updatedAt": "2026-06-21T13:53:58.554Z"
+    }
+  ],
+  "classes": [
+    {
+      "id": 1,
+      "name": "ABC123",
+      "departmentId": 3,
+      "room": null,
+      "schedule": null,
+      "capacity": 40,
+      "isActive": true,
+      "createdAt": "2026-06-21T13:51:21.342Z",
+      "updatedAt": "2026-06-21T13:51:21.342Z"
+    }
+  ],
+  "lecturerCourses": [],
+  "classSchedules": [],
+  "courseAssessments": [
+    {
+      "id": 7,
+      "courseId": 1,
+      "classId": 1,
+      "name": "Final Exam",
+      "key": "finalExam",
+      "weightPercent": 90,
+      "sortOrder": 0
+    },
+    {
+      "id": 8,
+      "courseId": 1,
+      "classId": 1,
+      "name": "Attendance",
+      "key": "attendance",
+      "weightPercent": 10,
+      "sortOrder": 1
+    }
+  ],
+  "students": [
+    {
+      "id": 1,
+      "studentId": "1202",
+      "firstName": "Ahmed",
+      "lastName": "Ali Jama",
+      "motherName": "Maryam Ahmed",
+      "parentPhone": "634336363",
+      "email": null,
+      "phone": "634336363",
+      "dateOfBirth": null,
+      "gender": "Male",
+      "address": "Hodan",
+      "imageUrl": "https://res.cloudinary.com/dimdznutq/image/upload/v1782049899/university/students/unul9prrnspzszxdurao.jpg",
+      "imagePublicId": "university/students/unul9prrnspzszxdurao",
+      "departmentId": 3,
+      "admissionAcademicYearId": null,
+      "classId": 1,
+      "program": null,
+      "admissionDate": "2026-06-21T13:51:42.443Z",
+      "status": "Inactive",
+      "paymentStatus": "Fully Paid",
+      "fee": 15,
+      "balance": 0,
+      "createdAt": "2026-06-21T13:51:42.443Z",
+      "updatedAt": "2026-06-21T14:33:26.857Z"
+    },
+    {
+      "id": 2,
+      "studentId": "1238",
+      "firstName": "Jama",
+      "lastName": "Ismail",
+      "motherName": "Ismail Jama",
+      "parentPhone": "634337878",
+      "email": null,
+      "phone": "634337878",
+      "dateOfBirth": null,
+      "gender": "Male",
+      "address": "Hodan",
+      "imageUrl": "https://res.cloudinary.com/dimdznutq/image/upload/v1782050059/university/students/rdiczg7qnctop1qxxe4j.jpg",
+      "imagePublicId": "university/students/rdiczg7qnctop1qxxe4j",
+      "departmentId": 3,
+      "admissionAcademicYearId": null,
+      "classId": 1,
+      "program": null,
+      "admissionDate": "2026-06-21T13:55:02.146Z",
+      "status": "Admitted",
+      "paymentStatus": "Fully Paid",
+      "fee": 15,
+      "balance": 0,
+      "createdAt": "2026-06-21T13:55:02.146Z",
+      "updatedAt": "2026-06-30T16:30:50.415Z"
+    },
+    {
+      "id": 3,
+      "studentId": "12342",
+      "firstName": "Kayse",
+      "lastName": "Abdi Jama",
+      "motherName": "Hodan Jama",
+      "parentPhone": "634337870",
+      "email": null,
+      "phone": "634337870",
+      "dateOfBirth": null,
+      "gender": "Male",
+      "address": "Aktoobar",
+      "imageUrl": null,
+      "imagePublicId": null,
+      "departmentId": 3,
+      "admissionAcademicYearId": null,
+      "classId": 1,
+      "program": null,
+      "admissionDate": "2026-06-21T13:56:52.536Z",
+      "status": "Admitted",
+      "paymentStatus": "Full Scholarship",
+      "fee": 0,
+      "balance": 0,
+      "createdAt": "2026-06-21T13:56:52.536Z",
+      "updatedAt": "2026-06-21T13:56:52.536Z"
+    },
+    {
+      "id": 4,
+      "studentId": "1998",
+      "firstName": "Cabdalla",
+      "lastName": "Jama",
+      "motherName": "Hodan Jama",
+      "parentPhone": "634363767",
+      "email": null,
+      "phone": "634363767",
+      "dateOfBirth": null,
+      "gender": "Male",
+      "address": "Burao",
+      "imageUrl": "https://res.cloudinary.com/dimdznutq/image/upload/v1782054757/university/students/x59cpr943uo8nb1pn4m4.jpg",
+      "imagePublicId": "university/students/x59cpr943uo8nb1pn4m4",
+      "departmentId": 3,
+      "admissionAcademicYearId": null,
+      "classId": 1,
+      "program": null,
+      "admissionDate": "2026-06-21T15:13:48.551Z",
+      "status": "Admitted",
+      "paymentStatus": "Fully Paid",
+      "fee": 15,
+      "balance": 15,
+      "createdAt": "2026-06-21T15:13:48.551Z",
+      "updatedAt": "2026-06-30T16:29:43.516Z"
+    }
+  ],
+  "studentCases": [
+    {
+      "id": 1,
+      "studentId": 1,
+      "caseType": "Disciplinary",
+      "title": "Quasi ipsa voluptas",
+      "description": "Dolor dolores in ver",
+      "caseDate": "1972-09-22T00:00:00.000Z",
+      "status": "Open",
+      "resolution": null,
+      "recordedById": 1,
+      "createdAt": "2026-06-22T06:04:07.826Z",
+      "updatedAt": "2026-06-22T06:04:07.826Z"
+    },
+    {
+      "id": 2,
+      "studentId": 4,
+      "caseType": "Disciplinary",
+      "title": "Issue",
+      "description": "Issue One",
+      "caseDate": "2026-06-22T00:00:00.000Z",
+      "status": "Open",
+      "resolution": null,
+      "recordedById": 1,
+      "createdAt": "2026-06-22T06:04:28.985Z",
+      "updatedAt": "2026-06-22T06:04:28.985Z"
+    }
+  ],
+  "attendanceSessions": [
+    {
+      "id": 1,
+      "classId": 1,
+      "courseId": 1,
+      "date": "2026-06-21T00:00:00.000Z",
+      "shift": "Afternoon",
+      "takenById": 1,
+      "takenAt": "2026-06-21T14:32:50.922Z",
+      "note": null,
+      "createdAt": "2026-06-21T14:32:50.922Z",
+      "updatedAt": "2026-06-21T14:32:50.922Z"
+    }
+  ],
+  "attendanceRecords": [
+    {
+      "id": 1,
+      "sessionId": 1,
+      "studentId": 3,
+      "status": "Present",
+      "note": null,
+      "createdAt": "2026-06-21T14:32:50.922Z"
+    },
+    {
+      "id": 2,
+      "sessionId": 1,
+      "studentId": 2,
+      "status": "Absent",
+      "note": null,
+      "createdAt": "2026-06-21T14:32:50.922Z"
+    },
+    {
+      "id": 3,
+      "sessionId": 1,
+      "studentId": 1,
+      "status": "Absent",
+      "note": null,
+      "createdAt": "2026-06-21T14:32:50.922Z"
+    }
+  ],
+  "tuitionPayments": [
+    {
+      "id": 1,
+      "studentId": 4,
+      "bankId": 2,
+      "amount": 5,
+      "year": 2026,
+      "paymentMethod": "cash_on_hand",
+      "receiptNumber": null,
+      "transactionId": null,
+      "paymentDate": "2026-06-21T00:00:00.000Z",
+      "paidAt": "2026-06-21T15:14:29.058Z",
+      "recordedById": 1,
+      "note": null,
+      "createdAt": "2026-06-21T15:14:29.058Z",
+      "updatedAt": "2026-06-21T15:14:29.058Z"
+    },
+    {
+      "id": 2,
+      "studentId": 2,
+      "bankId": 2,
+      "amount": 5,
+      "year": 2026,
+      "paymentMethod": "bank_receipt",
+      "receiptNumber": null,
+      "transactionId": null,
+      "paymentDate": "2026-06-21T15:22:18.762Z",
+      "paidAt": "2026-06-21T15:22:18.770Z",
+      "recordedById": 1,
+      "note": null,
+      "createdAt": "2026-06-21T15:22:18.770Z",
+      "updatedAt": "2026-06-21T15:22:18.770Z"
+    }
+  ],
+  "studentMonthlyInvoices": [
+    {
+      "id": 1,
+      "studentId": 1,
+      "year": 2026,
+      "month": 6,
+      "amount": 15,
+      "note": null,
+      "createdAt": "2026-06-21T14:13:16.144Z",
+      "createdById": 1
+    },
+    {
+      "id": 2,
+      "studentId": 2,
+      "year": 2026,
+      "month": 6,
+      "amount": 15,
+      "note": null,
+      "createdAt": "2026-06-21T14:13:16.159Z",
+      "createdById": 1
+    },
+    {
+      "id": 3,
+      "studentId": 2,
+      "year": 2026,
+      "month": 7,
+      "amount": 15,
+      "note": null,
+      "createdAt": "2026-06-21T14:35:17.505Z",
+      "createdById": 1
+    },
+    {
+      "id": 4,
+      "studentId": 2,
+      "year": 2026,
+      "month": 8,
+      "amount": 15,
+      "note": null,
+      "createdAt": "2026-06-30T16:29:43.491Z",
+      "createdById": 1
+    },
+    {
+      "id": 5,
+      "studentId": 4,
+      "year": 2026,
+      "month": 8,
+      "amount": 15,
+      "note": null,
+      "createdAt": "2026-06-30T16:29:43.506Z",
+      "createdById": 1
+    }
+  ],
+  "studentMonthlyPayments": [
+    {
+      "id": 1,
+      "batchId": "943bf099-25e9-45e6-a8d5-8e47025dc7e0",
+      "studentId": 1,
+      "bankId": 1,
+      "year": 2026,
+      "month": 6,
+      "amount": 15,
+      "paymentMethod": "cash_on_hand",
+      "receiptNumber": null,
+      "transactionId": null,
+      "paymentDate": "2026-06-21T00:00:00.000Z",
+      "paidAt": "2026-06-21T14:14:11.708Z",
+      "recordedById": 1,
+      "note": "Received payment",
+      "createdAt": "2026-06-21T14:14:11.708Z",
+      "updatedAt": "2026-06-21T14:14:11.708Z"
+    },
+    {
+      "id": 2,
+      "batchId": "3511b3ca-2ab7-48d9-946c-a1c959430b7b",
+      "studentId": 2,
+      "bankId": 1,
+      "year": 2026,
+      "month": 6,
+      "amount": 15,
+      "paymentMethod": "cash_on_hand",
+      "receiptNumber": null,
+      "transactionId": null,
+      "paymentDate": "2026-06-21T00:00:00.000Z",
+      "paidAt": "2026-06-21T14:14:32.516Z",
+      "recordedById": 1,
+      "note": "Received payment",
+      "createdAt": "2026-06-21T14:14:32.516Z",
+      "updatedAt": "2026-06-21T14:14:32.516Z"
+    },
+    {
+      "id": 3,
+      "batchId": "3c63d8c2-6718-4d94-969b-8cea0645cfc7",
+      "studentId": 2,
+      "bankId": 4,
+      "year": 2026,
+      "month": 7,
+      "amount": 15,
+      "paymentMethod": "cash_on_hand",
+      "receiptNumber": null,
+      "transactionId": null,
+      "paymentDate": "2026-06-21T00:00:00.000Z",
+      "paidAt": "2026-06-21T14:35:38.634Z",
+      "recordedById": 1,
+      "note": "Received payment",
+      "createdAt": "2026-06-21T14:35:38.634Z",
+      "updatedAt": "2026-06-21T14:35:38.634Z"
+    },
+    {
+      "id": 4,
+      "batchId": "4edb6a4f-b7ad-4a1f-b083-5a38f75a8f29",
+      "studentId": 2,
+      "bankId": 4,
+      "year": 2026,
+      "month": 8,
+      "amount": 10,
+      "paymentMethod": "cash_on_hand",
+      "receiptNumber": null,
+      "transactionId": null,
+      "paymentDate": "2026-06-30T00:00:00.000Z",
+      "paidAt": "2026-06-30T16:30:50.410Z",
+      "recordedById": 1,
+      "note": "Received payment | Discount: $5.00",
+      "createdAt": "2026-06-30T16:30:50.410Z",
+      "updatedAt": "2026-06-30T16:30:50.410Z"
+    }
+  ],
+  "bankWithdrawals": [],
+  "bankTransfers": [],
+  "transactionHistory": [
+    {
+      "id": 1,
+      "type": "deposit",
+      "amount": 15,
+      "bankId": 1,
+      "relatedBankId": null,
+      "description": "Monthly fee: Ahmed Ali Jama (1202) — June 2026 · Cash on Hand · Received payment",
+      "studentId": 1,
+      "tuitionPaymentId": null,
+      "studentMonthlyPaymentId": 1,
+      "bankWithdrawalId": null,
+      "bankTransferId": null,
+      "createdAt": "2026-06-21T14:14:11.720Z",
+      "createdById": 1
+    },
+    {
+      "id": 2,
+      "type": "deposit",
+      "amount": 15,
+      "bankId": 1,
+      "relatedBankId": null,
+      "description": "Monthly fee: Jama Ismail (1238) — June 2026 · Cash on Hand · Received payment",
+      "studentId": 2,
+      "tuitionPaymentId": null,
+      "studentMonthlyPaymentId": 2,
+      "bankWithdrawalId": null,
+      "bankTransferId": null,
+      "createdAt": "2026-06-21T14:14:32.530Z",
+      "createdById": 1
+    },
+    {
+      "id": 3,
+      "type": "deposit",
+      "amount": 15,
+      "bankId": 4,
+      "relatedBankId": null,
+      "description": "Monthly fee: Jama Ismail (1238) — July 2026 · Cash on Hand · Received payment",
+      "studentId": 2,
+      "tuitionPaymentId": null,
+      "studentMonthlyPaymentId": 3,
+      "bankWithdrawalId": null,
+      "bankTransferId": null,
+      "createdAt": "2026-06-21T14:35:38.651Z",
+      "createdById": 1
+    },
+    {
+      "id": 4,
+      "type": "deposit",
+      "amount": 5,
+      "bankId": 2,
+      "relatedBankId": null,
+      "description": "Registration: Cabdalla Jama (1998)",
+      "studentId": 4,
+      "tuitionPaymentId": 1,
+      "studentMonthlyPaymentId": null,
+      "bankWithdrawalId": null,
+      "bankTransferId": null,
+      "createdAt": "2026-06-21T15:14:29.071Z",
+      "createdById": 1
+    },
+    {
+      "id": 5,
+      "type": "deposit",
+      "amount": 5,
+      "bankId": 2,
+      "relatedBankId": null,
+      "description": "Registration: Jama Ismail (1238)",
+      "studentId": 2,
+      "tuitionPaymentId": 2,
+      "studentMonthlyPaymentId": null,
+      "bankWithdrawalId": null,
+      "bankTransferId": null,
+      "createdAt": "2026-06-21T15:22:18.800Z",
+      "createdById": 1
+    },
+    {
+      "id": 6,
+      "type": "deposit",
+      "amount": 10,
+      "bankId": 4,
+      "relatedBankId": null,
+      "description": "Monthly fee: Jama Ismail (1238) — August 2026 · Cash on Hand · Discount $5.00 · Received payment",
+      "studentId": 2,
+      "tuitionPaymentId": null,
+      "studentMonthlyPaymentId": 4,
+      "bankWithdrawalId": null,
+      "bankTransferId": null,
+      "createdAt": "2026-06-30T16:30:50.422Z",
+      "createdById": 1
+    }
+  ],
+  "expenses": [],
+  "employees": [],
+  "payrolls": [],
+  "examRecords": [],
+  "conversations": [
+    {
+      "id": 1,
+      "userOneId": 1,
+      "userTwoId": 2,
+      "lastMessageAt": "2026-06-22T08:23:43.527Z",
+      "createdAt": "2026-06-22T06:05:05.550Z",
+      "updatedAt": "2026-06-22T08:23:43.531Z"
+    }
+  ],
+  "chatMessages": [
+    {
+      "id": 1,
+      "conversationId": 1,
+      "senderId": 1,
+      "body": "Iisoo dir Warqadda",
+      "createdAt": "2026-06-22T06:05:17.214Z"
+    },
+    {
+      "id": 2,
+      "conversationId": 1,
+      "senderId": 2,
+      "body": "Haye ka eego imika",
+      "createdAt": "2026-06-22T06:05:56.482Z"
+    },
+    {
+      "id": 3,
+      "conversationId": 1,
+      "senderId": 1,
+      "body": "Waar iwaran",
+      "createdAt": "2026-06-22T08:23:43.531Z"
+    }
+  ],
+  "conversationReads": [
+    {
+      "conversationId": 1,
+      "userId": 1,
+      "lastReadAt": "2026-06-30T16:23:26.193Z"
+    },
+    {
+      "conversationId": 1,
+      "userId": 2,
+      "lastReadAt": "2026-06-22T06:08:54.918Z"
+    }
+  ]
+}

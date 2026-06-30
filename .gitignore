@@ -36,7 +36,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# database snapshot used by prisma seed (contains real data — remove this line to commit)
-/prisma/seed-data.json
-
 /src/generated/prisma
