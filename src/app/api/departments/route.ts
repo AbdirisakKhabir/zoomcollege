@@ -1,37 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { getAuthUser } from "@/lib/auth";
+import {
+  applyDepartmentIdScope,
+  applyDepartmentScope,
+  departmentScopeForbiddenResponse,
+  getDepartmentScope,
+  loadAuthContext,
+  parseDepartmentIdParam,
+  requireSuperAdmin,
+} from "@/lib/department-access";
 import { prisma } from "@/lib/prisma";
 import { parsePaginationParams } from "@/lib/pagination";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const { paginate, page, pageSize, skip } = parsePaginationParams(searchParams);
     const q = searchParams.get("q")?.trim();
-    const facultyId = searchParams.get("facultyId");
     const where: Prisma.DepartmentWhereInput = {};
+    const scope = getDepartmentScope(
+      ctx,
+      parseDepartmentIdParam(searchParams.get("departmentId"))
+    );
+    if (scope.kind === "none") return departmentScopeForbiddenResponse();
+    applyDepartmentIdScope(where, scope);
     if (q) {
       where.OR = [
         { name: { contains: q } },
         { code: { contains: q } },
         { description: { contains: q } },
-        { faculty: { name: { contains: q } } },
       ];
     }
-    if (facultyId && facultyId !== "all") {
-      const id = Number(facultyId);
-      if (Number.isInteger(id) && id > 0) where.facultyId = id;
-    }
-
-    const include = {
-      faculty: { select: { id: true, name: true, code: true } },
-    } as const;
 
     if (paginate) {
       const [items, total] = await Promise.all([
@@ -39,7 +43,6 @@ export async function GET(req: NextRequest) {
           where,
           skip,
           take: pageSize,
-          include,
           orderBy: { name: "asc" },
         }),
         prisma.department.count({ where }),
@@ -49,7 +52,6 @@ export async function GET(req: NextRequest) {
 
     const departments = await prisma.department.findMany({
       where,
-      include,
       orderBy: { name: "asc" },
     });
 
@@ -65,18 +67,19 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const denied = requireSuperAdmin(ctx);
+    if (denied) return denied;
 
     const body = await req.json();
-    const { name, code, description, facultyId, tuitionFee } = body;
-    const parsedFacultyId = Number(facultyId);
+    const { name, code, description, registrationFee } = body;
 
-    if (!name || !code || !Number.isInteger(parsedFacultyId)) {
+    if (!name || !code) {
       return NextResponse.json(
-        { error: "Name, code and facultyId are required" },
+        { error: "Name and code are required" },
         { status: 400 }
       );
     }
@@ -86,11 +89,7 @@ export async function POST(req: NextRequest) {
         name: String(name).trim(),
         code: String(code).trim().toUpperCase(),
         description: description || null,
-        facultyId: parsedFacultyId,
-        tuitionFee: tuitionFee != null ? Number(tuitionFee) : null,
-      },
-      include: {
-        faculty: { select: { id: true, name: true, code: true } },
+        registrationFee: registrationFee != null ? Number(registrationFee) : null,
       },
     });
 

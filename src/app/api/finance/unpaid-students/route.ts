@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { computeRegistrationFeeAmount } from "@/lib/monthly-fee";
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,31 +11,21 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const semester = searchParams.get("semester");
-    const year = searchParams.get("year");
     const classId = searchParams.get("classId");
 
-    if (!semester || !year || !classId) {
-      return NextResponse.json(
-        { error: "semester, year, and classId are required" },
-        { status: 400 }
-      );
+    if (!classId) {
+      return NextResponse.json({ error: "classId is required" }, { status: 400 });
     }
 
-    const parsedYear = Number(year);
     const parsedClassId = Number(classId);
-    if (!Number.isInteger(parsedYear) || !Number.isInteger(parsedClassId)) {
-      return NextResponse.json(
-        { error: "Invalid year or classId" },
-        { status: 400 }
-      );
+    if (!Number.isInteger(parsedClassId)) {
+      return NextResponse.json({ error: "Invalid classId" }, { status: 400 });
     }
 
-    // Verify class exists and matches semester/year
     const cls = await prisma.class.findUnique({
       where: { id: parsedClassId },
       include: {
-        department: { select: { code: true, name: true, tuitionFee: true } },
+        department: { select: { code: true, name: true, registrationFee: true } },
       },
     });
 
@@ -42,45 +33,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    if (cls.semester !== semester || cls.year !== parsedYear) {
-      return NextResponse.json(
-        { error: "Class semester/year does not match the selected semester and year" },
-        { status: 400 }
-      );
-    }
-
-    // Get all students in this class
     const studentsInClass = await prisma.student.findMany({
       where: { classId: parsedClassId, status: "Admitted" },
       include: {
-        department: { select: { name: true, code: true, tuitionFee: true } },
+        department: { select: { name: true, code: true, registrationFee: true } },
         tuitionPayments: {
-          where: { semester, year: parsedYear },
           select: { id: true, amount: true },
         },
       },
       orderBy: [{ studentId: "asc" }],
     });
 
-    // Expected amount based on payment status:
-    // Full Scholarship = 0 (exclude from unpaid list)
-    // Half Scholar = 50% of tuition
-    // Fully Paid = 100% of tuition
     const unpaidStudents = studentsInClass
       .filter((s) => {
-        const tuitionFee = s.department.tuitionFee ?? 0;
         const paymentStatus = s.paymentStatus ?? "Fully Paid";
-        if (paymentStatus === "Full Scholarship") return false; // Never unpaid
-        const expectedAmount =
-          paymentStatus === "Half Scholar" ? tuitionFee * 0.5 : tuitionFee;
+        if (paymentStatus === "Full Scholarship") return false;
+        const expectedAmount = computeRegistrationFeeAmount(
+          s.department.registrationFee,
+          paymentStatus
+        );
         const paidAmount = s.tuitionPayments.reduce((sum, p) => sum + p.amount, 0);
         return paidAmount < expectedAmount;
       })
       .map((s) => {
-        const tuitionFee = s.department.tuitionFee ?? 0;
         const paymentStatus = s.paymentStatus ?? "Fully Paid";
-        const expectedAmount =
-          paymentStatus === "Half Scholar" ? tuitionFee * 0.5 : tuitionFee;
+        const expectedAmount = computeRegistrationFeeAmount(
+          s.department.registrationFee,
+          paymentStatus
+        );
         const paidAmount = s.tuitionPayments.reduce((sum, p) => sum + p.amount, 0);
         const amountDue = expectedAmount - paidAmount;
         return {
@@ -91,7 +71,7 @@ export async function GET(req: NextRequest) {
           email: s.email,
           phone: s.phone,
           department: s.department,
-          tuitionFee: amountDue, // Amount still due for display
+          registrationFee: amountDue,
           paymentStatus,
           amountPaid: paidAmount,
           amountDue,
@@ -102,12 +82,8 @@ export async function GET(req: NextRequest) {
       class: {
         id: cls.id,
         name: cls.name,
-        semester: cls.semester,
-        year: cls.year,
         department: cls.department,
       },
-      semester,
-      year: parsedYear,
       unpaidStudents,
       totalUnpaid: unpaidStudents.length,
     });

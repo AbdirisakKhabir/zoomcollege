@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateTotalFromScoreMap, getGradeInfo } from "@/lib/grades";
-import { isValidSemester } from "@/lib/semesters";
 import { normalizeScoresForCourse } from "@/lib/course-assessments";
-import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
+import {
+  loadAssessmentsForClassCourse,
+  seedDefaultAssessmentsIfEmpty,
+} from "@/lib/course-assessment-scope";
+import { fetchClassCourseAttendanceSummary } from "@/lib/exam-attendance";
+import { computeExamRecordTotals, resolveExamYear } from "@/lib/exam-records";
 
 type RecordInput = {
   studentId: number;
@@ -46,11 +49,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { classId, courseId, records, status } = body as {
+    const { classId, courseId, records, status, year } = body as {
       classId: number;
       courseId: number;
       records: RecordInput[];
       status: "draft" | "approved";
+      year?: number;
     };
 
     if (!classId || !courseId || !Array.isArray(records) || records.length === 0) {
@@ -69,12 +73,14 @@ export async function POST(req: NextRequest) {
 
     const cls = await prisma.class.findUnique({
       where: { id: Number(classId) },
-      select: { id: true, departmentId: true, semester: true, year: true },
+      select: { id: true, departmentId: true },
     });
 
     if (!cls) {
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
+
+    const examYear = resolveExamYear(year);
 
     const course = await prisma.course.findUnique({
       where: { id: Number(courseId) },
@@ -88,19 +94,23 @@ export async function POST(req: NextRequest) {
 
     const effectiveCourseId = course.id;
 
-    if (!(await isValidSemester(cls.semester))) {
-      return NextResponse.json(
-        { error: "Invalid semester. Use a semester from the Semesters settings." },
-        { status: 400 }
+    await seedDefaultAssessmentsIfEmpty(effectiveCourseId, cls.id);
+
+    const assessments = await loadAssessmentsForClassCourse(
+      effectiveCourseId,
+      cls.id
+    );
+
+    const studentIds = records
+      .map((r) => Number(r.studentId))
+      .filter((id) => Number.isInteger(id));
+
+    const { byStudent: attendanceByStudent } =
+      await fetchClassCourseAttendanceSummary(
+        cls.id,
+        effectiveCourseId,
+        studentIds
       );
-    }
-
-    await seedDefaultAssessmentsIfEmpty(effectiveCourseId);
-
-    const assessments = await prisma.courseAssessment.findMany({
-      where: { courseId: effectiveCourseId },
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    });
 
     const created: number[] = [];
     const updated: number[] = [];
@@ -114,55 +124,29 @@ export async function POST(req: NextRequest) {
       }
 
       const raw = scoresFromPayload(r);
-      const { scores, error } = normalizeScoresForCourse(raw, assessments);
+      const { scores: normalizedInput, error } = normalizeScoresForCourse(
+        raw,
+        assessments
+      );
       if (error) {
         errors.push(`Student ${studentId}: ${error}`);
         continue;
       }
 
-      let totalMarks: number;
-      let grade: string;
-      let gradePoints: number;
-
-      if (r.totalMarks !== undefined && r.totalMarks !== null && !Number.isNaN(Number(r.totalMarks))) {
-        totalMarks = Number(r.totalMarks);
-      } else {
-        totalMarks = calculateTotalFromScoreMap(scores);
-      }
-
-      if (r.grade && /^[A-D][+-]?|F$/i.test(String(r.grade).trim())) {
-        grade = String(r.grade).trim().toUpperCase();
-        gradePoints =
-          r.gradePoints !== undefined && r.gradePoints !== null && !Number.isNaN(Number(r.gradePoints))
-            ? Number(r.gradePoints)
-            : (() => {
-                const scale = [
-                  { grade: "A", points: 4.0 },
-                  { grade: "A-", points: 3.7 },
-                  { grade: "B+", points: 3.3 },
-                  { grade: "B", points: 3.0 },
-                  { grade: "B-", points: 2.7 },
-                  { grade: "C+", points: 2.3 },
-                  { grade: "C", points: 2.0 },
-                  { grade: "D", points: 1.0 },
-                  { grade: "F", points: 0.0 },
-                ];
-                const entry = scale.find((s) => s.grade === grade);
-                return entry ? entry.points : 0;
-              })();
-      } else {
-        const info = getGradeInfo(totalMarks);
-        grade = info.grade;
-        gradePoints = info.gradePoints;
-      }
+      const attendanceAgg = attendanceByStudent.get(studentId);
+      const attendanceMarks = attendanceAgg?.attendanceMarks ?? 0;
+      const { scores, totalMarks, grade, gradePoints } = computeExamRecordTotals(
+        normalizedInput,
+        attendanceMarks,
+        assessments
+      );
 
       const existing = await prisma.examRecord.findUnique({
         where: {
-          studentId_courseId_semester_year: {
+          studentId_courseId_year: {
             studentId,
             courseId: effectiveCourseId,
-            semester: cls.semester,
-            year: cls.year,
+            year: examYear,
           },
         },
       });
@@ -186,8 +170,7 @@ export async function POST(req: NextRequest) {
           data: {
             studentId,
             courseId: effectiveCourseId,
-            semester: cls.semester,
-            year: cls.year,
+            year: examYear,
             ...data,
           },
         });

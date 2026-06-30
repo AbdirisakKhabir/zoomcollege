@@ -25,7 +25,7 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
         admissionAcademicYear: {
           select: { id: true, name: true, startYear: true, endYear: true },
         },
-        class: { select: { id: true, name: true, semester: true, year: true, department: { select: { code: true } } } },
+        class: { select: { id: true, name: true, department: { select: { code: true } } } },
       },
     });
 
@@ -149,7 +149,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
         admissionAcademicYear: {
           select: { id: true, name: true, startYear: true, endYear: true },
         },
-        class: { select: { id: true, name: true, semester: true, year: true, department: { select: { code: true } } } },
+        class: { select: { id: true, name: true, department: { select: { code: true } } } },
       },
     });
 

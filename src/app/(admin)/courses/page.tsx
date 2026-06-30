@@ -61,6 +61,16 @@ export default function CoursesPage() {
 
   const [assessModalOpen, setAssessModalOpen] = useState(false);
   const [assessCourse, setAssessCourse] = useState<CourseRow | null>(null);
+  const [assessClassId, setAssessClassId] = useState("");
+  const [assessClasses, setAssessClasses] = useState<
+    {
+      id: number;
+      name: string;
+            year: number;
+      department: { code: string; name: string };
+      lecturer: { id: number; name: string } | null;
+    }[]
+  >([]);
   const [assessItems, setAssessItems] = useState<{ name: string; key: string; weightPercent: string }[]>([]);
   const [assessLoading, setAssessLoading] = useState(false);
   const [assessSaving, setAssessSaving] = useState(false);
@@ -82,27 +92,40 @@ export default function CoursesPage() {
   const canEdit = hasPermission("courses.edit");
   const canDelete = hasPermission("courses.delete");
 
-  const loadCourses = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("pageSize", String(pageSize));
-      if (search.trim()) params.set("q", search.trim());
-      if (filterDeptId !== "all") params.set("departmentId", filterDeptId);
-      const res = await authFetch(`/api/courses?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCourses(Array.isArray(data.items) ? data.items : []);
-        setTotal(typeof data.total === "number" ? data.total : 0);
-      } else {
-        setCourses([]);
-        setTotal(0);
+  const loadCourses = useCallback(
+    async (options?: { silent?: boolean; pageOverride?: number }) => {
+      const silent = options?.silent ?? false;
+      const requestPage = options?.pageOverride ?? page;
+      if (!silent) setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(requestPage));
+        params.set("pageSize", String(pageSize));
+        if (search.trim()) params.set("q", search.trim());
+        if (filterDeptId !== "all") params.set("departmentId", filterDeptId);
+        const res = await authFetch(`/api/courses?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.items)) {
+            setCourses(data.items);
+            setTotal(typeof data.total === "number" ? data.total : data.items.length);
+          } else if (Array.isArray(data)) {
+            setCourses(data);
+            setTotal(data.length);
+          } else {
+            setCourses([]);
+            setTotal(0);
+          }
+        } else {
+          setCourses([]);
+          setTotal(0);
+        }
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [page, pageSize, search, filterDeptId, setTotal]);
+    },
+    [page, pageSize, search, filterDeptId, setTotal]
+  );
 
   async function loadDepartments() {
     const res = await authFetch("/api/departments");
@@ -180,6 +203,9 @@ export default function CoursesPage() {
           setSubmitError(data.error || "Failed to create course");
           return;
         }
+        setModal(null);
+        if (page !== 1) setPage(1);
+        await loadCourses({ silent: true, pageOverride: 1 });
       } else if (modal === "edit" && editingId) {
         const res = await authFetch(`/api/courses/${editingId}`, {
           method: "PATCH",
@@ -191,9 +217,9 @@ export default function CoursesPage() {
           setSubmitError(data.error || "Failed to update course");
           return;
         }
+        setModal(null);
+        await loadCourses({ silent: true });
       }
-      await loadCourses();
-      setModal(null);
     } finally {
       setSubmitting(false);
     }
@@ -202,7 +228,7 @@ export default function CoursesPage() {
   async function handleDelete(id: number) {
     if (!confirm("Are you sure you want to delete this course?")) return;
     const res = await authFetch(`/api/courses/${id}`, { method: "DELETE" });
-    if (res.ok) await loadCourses();
+    if (res.ok) await loadCourses({ silent: true });
     else {
       const data = await res.json();
       alert(data.error || "Failed to delete");
@@ -241,7 +267,7 @@ export default function CoursesPage() {
       const data = await res.json();
       if (res.ok) {
         setSelectedIds(new Set());
-        await loadCourses();
+        await loadCourses({ silent: true });
         if (data.errors?.length) {
           alert(`Deleted ${data.deleted}. ${data.skipped} skipped:\n${data.errors.slice(0, 5).join("\n")}${data.errors.length > 5 ? `\n... and ${data.errors.length - 5} more` : ""}`);
         }
@@ -271,7 +297,7 @@ export default function CoursesPage() {
       const data = await res.json();
       if (res.ok) {
         setSelectedIds(new Set());
-        await loadCourses();
+        await loadCourses({ silent: true });
         if (data.errors?.length) {
           alert(`Deleted ${data.deleted}. ${data.skipped} skipped (have schedule slots).`);
         }
@@ -291,22 +317,32 @@ export default function CoursesPage() {
     setImportResult(null);
   }
 
-  async function openAssessments(c: CourseRow) {
-    setAssessCourse(c);
-    setAssessModalOpen(true);
-    setAssessError("");
+  async function loadAssessmentsForClass(courseId: number, classId: string) {
     setAssessLoading(true);
+    setAssessError("");
     try {
-      const res = await authFetch(`/api/courses/${c.id}/assessments`);
+      const params = classId ? `?classId=${encodeURIComponent(classId)}` : "";
+      const res = await authFetch(`/api/courses/${courseId}/assessments${params}`);
       const data = res.ok ? await res.json() : null;
-      const items = data?.assessments ?? [];
-      setAssessItems(
-        items.map((x: { name: string; key: string; weightPercent: number }) => ({
-          name: x.name,
-          key: x.key,
-          weightPercent: String(x.weightPercent),
-        }))
-      );
+      if (!res.ok) {
+        setAssessError(data?.error || "Failed to load assessments.");
+        setAssessItems([]);
+        setAssessLoading(false);
+        return;
+      }
+      setAssessClasses(data?.classes ?? []);
+      if (classId) {
+        const items = data?.assessments ?? [];
+        setAssessItems(
+          items.map((x: { name: string; key: string; weightPercent: number }) => ({
+            name: x.name,
+            key: x.key,
+            weightPercent: String(x.weightPercent),
+          }))
+        );
+      } else {
+        setAssessItems([]);
+      }
     } catch {
       setAssessError("Failed to load assessments.");
       setAssessItems([]);
@@ -314,9 +350,31 @@ export default function CoursesPage() {
     setAssessLoading(false);
   }
 
+  async function openAssessments(c: CourseRow) {
+    setAssessCourse(c);
+    setAssessModalOpen(true);
+    setAssessClassId("");
+    setAssessClasses([]);
+    setAssessItems([]);
+    await loadAssessmentsForClass(c.id, "");
+  }
+
+  async function handleAssessClassChange(classId: string) {
+    setAssessClassId(classId);
+    if (!assessCourse || !classId) {
+      setAssessItems([]);
+      return;
+    }
+    await loadAssessmentsForClass(assessCourse.id, classId);
+  }
+
   async function saveAssessments(e: React.FormEvent) {
     e.preventDefault();
     if (!assessCourse) return;
+    if (!assessClassId) {
+      setAssessError("Select the class this assessment setup applies to.");
+      return;
+    }
     setAssessError("");
     const items = assessItems.map((it) => ({
       name: it.name.trim(),
@@ -339,7 +397,7 @@ export default function CoursesPage() {
       const res = await authFetch(`/api/courses/${assessCourse.id}/assessments`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ classId: Number(assessClassId), items }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -391,7 +449,8 @@ export default function CoursesPage() {
       if (res.ok) {
         setImportResult({ created: data.created, errors: data.errors });
         if (data.created > 0) {
-          await loadCourses();
+          if (page !== 1) setPage(1);
+          await loadCourses({ silent: true, pageOverride: 1 });
         }
         if (!data.errors?.length && data.created > 0) {
           setModal(null);
@@ -678,7 +737,7 @@ export default function CoursesPage() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">Course assessments</h2>
                 <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
-                  {assessCourse.code} — weights must total 100%.
+                  {assessCourse.code} — select a class, then set weights (total 100%).
                 </p>
               </div>
               <button
@@ -703,6 +762,35 @@ export default function CoursesPage() {
                       {assessError}
                     </div>
                   )}
+                  <div className="mb-4">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Class <span className="text-error-500">*</span>
+                    </label>
+                    <select
+                      value={assessClassId}
+                      onChange={(e) => void handleAssessClassChange(e.target.value)}
+                      className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-brand-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                    >
+                      <option value="">Select class…</option>
+                      {assessClasses.map((cl) => (
+                        <option key={cl.id} value={String(cl.id)}>
+                          {cl.department.code} — {cl.name} ({cl.year})
+                          {cl.lecturer ? ` · ${cl.lecturer.name}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {assessClasses.length === 0 && (
+                      <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                        No active classes in this department.
+                      </p>
+                    )}
+                  </div>
+                  {!assessClassId ? (
+                    <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                      Choose a class to view or edit its assessment components.
+                    </p>
+                  ) : (
+                <>
                   <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
                     Key: stable identifier for imports and records (letters, numbers, underscore). Max marks per component equals its weight.
                   </p>
@@ -770,11 +858,13 @@ export default function CoursesPage() {
                       <Button type="button" variant="outline" size="sm" onClick={() => { setAssessModalOpen(false); setAssessCourse(null); }}>
                         Cancel
                       </Button>
-                      <Button type="submit" size="sm" disabled={assessSaving}>
+                      <Button type="submit" size="sm" disabled={assessSaving || !assessClassId}>
                         {assessSaving ? "Saving..." : "Save"}
                       </Button>
                     </div>
                   </div>
+                </>
+                  )}
                 </>
               )}
             </form>

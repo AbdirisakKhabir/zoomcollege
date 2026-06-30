@@ -5,13 +5,14 @@ import {
   computeAttendanceMarks,
   computeAttendancePercent,
 } from "@/lib/attendance";
-import { getSemesterDateRange } from "@/lib/semester-dates";
 import { parseScoresJson } from "@/lib/course-assessments";
+import { resolveExamYear } from "@/lib/exam-records";
+import { resolveAttendanceSessionIds } from "@/lib/exam-attendance";
 
 /**
  * GET /api/reports/attendance-exam?classId=X&courseId=Y
  * Returns students with attendance (Present, Absent, Late, Excused, %, marks) and exam records
- * for the selected class and course. Attendance is filtered by class semester/year.
+ * for the selected class and course.
  * courseId is optional - if provided, includes exam record for that course only.
  */
 export async function GET(req: NextRequest) {
@@ -43,6 +44,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
+    const examYear = resolveExamYear(searchParams.get("year"));
+
     const students = await prisma.student.findMany({
       where: { classId: Number(classId), status: "Admitted" },
       select: {
@@ -56,16 +59,19 @@ export async function GET(req: NextRequest) {
 
     const studentIds = students.map((s) => s.id);
 
-    // Attendance (semester-filtered)
-    const { start, end } = getSemesterDateRange(cls.semester, cls.year);
-    const sessions = await prisma.attendanceSession.findMany({
-      where: {
-        classId: Number(classId),
-        date: { gte: start, lte: end },
-      },
-      select: { id: true },
-    });
-    const sessionIds = sessions.map((s) => s.id);
+    let sessionIds: number[];
+    if (courseId) {
+      sessionIds = await resolveAttendanceSessionIds(
+        Number(classId),
+        Number(courseId)
+      );
+    } else {
+      const sessions = await prisma.attendanceSession.findMany({
+        where: { classId: Number(classId) },
+        select: { id: true },
+      });
+      sessionIds = sessions.map((s) => s.id);
+    }
     const totalSessions = sessionIds.length;
 
     const attendanceRecords = await prisma.attendanceRecord.findMany({
@@ -92,16 +98,13 @@ export async function GET(req: NextRequest) {
       else if (r.status === "Excused") agg.excused++;
     }
 
-    // Exam records - optionally filtered by course
     const examWhere: {
       studentId: { in: number[] };
-      semester: string;
       year: number;
       courseId?: number;
     } = {
       studentId: { in: studentIds },
-      semester: cls.semester,
-      year: cls.year,
+      year: examYear,
     };
     if (courseId) {
       examWhere.courseId = Number(courseId);
@@ -181,8 +184,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       class: cls,
-      semester: cls.semester,
-      year: cls.year,
+      year: examYear,
       totalSessions,
       courses,
       rows,

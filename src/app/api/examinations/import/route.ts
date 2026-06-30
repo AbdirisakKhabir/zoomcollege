@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
-import { calculateTotalFromScoreMap, getGradeInfo, getGradePointsFromGrade } from "@/lib/grades";
-import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
+import {
+  loadAssessmentsForClassCourse,
+  seedDefaultAssessmentsIfEmpty,
+} from "@/lib/course-assessment-scope";
+import { fetchClassCourseAttendanceSummary } from "@/lib/exam-attendance";
+import { computeExamRecordTotals, resolveExamYear } from "@/lib/exam-records";
 
 function findCol(headerRow: string[], patterns: RegExp[]): number {
   for (const p of patterns) {
@@ -59,6 +63,8 @@ export async function POST(req: NextRequest) {
     const classId = formData.get("classId") as string | null;
     const courseId = formData.get("courseId") as string | null;
 
+    const yearRaw = formData.get("year") as string | null;
+
     if (!file || !classId || !courseId) {
       return NextResponse.json(
         { error: "file, classId, and courseId are required" },
@@ -68,12 +74,14 @@ export async function POST(req: NextRequest) {
 
     const cls = await prisma.class.findUnique({
       where: { id: Number(classId) },
-      select: { id: true, departmentId: true, semester: true, year: true },
+      select: { id: true, departmentId: true },
     });
 
     if (!cls) {
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
+
+    const examYear = resolveExamYear(yearRaw);
 
     const course = await prisma.course.findUnique({
       where: { id: Number(courseId) },
@@ -85,12 +93,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await seedDefaultAssessmentsIfEmpty(course.id);
+    await seedDefaultAssessmentsIfEmpty(course.id, cls.id);
 
-    const assessments = await prisma.courseAssessment.findMany({
-      where: { courseId: course.id },
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    });
+    const assessments = await loadAssessmentsForClassCourse(course.id, cls.id);
 
     const buf = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buf, { type: "buffer" });
@@ -137,9 +142,16 @@ export async function POST(req: NextRequest) {
       idx: colIndexForAssessment(headerRow, a),
     }));
 
-    const totalIdx = findCol(headerRow, [/^total$/i]);
-    const gradeIdx = findCol(headerRow, [/^grade$/i]);
-    const gpaIdx = findCol(headerRow, [/^gpa$/i]);
+    const studentsInClass = await prisma.student.findMany({
+      where: { classId: cls.id, status: "Admitted" },
+      select: { id: true, studentId: true },
+    });
+    const { byStudent: attendanceByStudent } =
+      await fetchClassCourseAttendanceSummary(
+        cls.id,
+        course.id,
+        studentsInClass.map((s) => s.id)
+      );
 
     const created: number[] = [];
     const updated: number[] = [];
@@ -162,7 +174,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const scores: Record<string, number> = {};
+      const inputScores: Record<string, number> = {};
       let rowInvalid = false;
       for (const ac of assessmentColIdx) {
         const raw = ac.idx >= 0 ? row[ac.idx] : "";
@@ -174,38 +186,24 @@ export async function POST(req: NextRequest) {
           rowInvalid = true;
           break;
         }
-        scores[ac.key] = n;
+        inputScores[ac.key] = n;
       }
       if (rowInvalid) continue;
 
-      let totalMarks: number;
-      let grade: string;
-      let gradePoints: number;
-
-      const fileTotal = totalIdx >= 0 ? parseNumOrNull(row[totalIdx]) : null;
-      const fileGrade = gradeIdx >= 0 ? String(row[gradeIdx] ?? "").trim() : "";
-      const fileGpa = gpaIdx >= 0 ? parseNumOrNull(row[gpaIdx]) : null;
-
-      totalMarks =
-        fileTotal !== null && fileTotal >= 0 ? fileTotal : calculateTotalFromScoreMap(scores);
-
-      if (fileGrade && /^[A-D][+-]?|F$/i.test(fileGrade)) {
-        grade = fileGrade.toUpperCase().replace(/^([A-D])$/, "$1");
-        const pts = getGradePointsFromGrade(grade);
-        gradePoints = fileGpa !== null ? fileGpa : pts ?? 0;
-      } else {
-        const info = getGradeInfo(totalMarks);
-        grade = info.grade;
-        gradePoints = info.gradePoints;
-      }
+      const attendanceMarks =
+        attendanceByStudent.get(student.id)?.attendanceMarks ?? 0;
+      const { scores, totalMarks, grade, gradePoints } = computeExamRecordTotals(
+        inputScores,
+        attendanceMarks,
+        assessments
+      );
 
       const existing = await prisma.examRecord.findUnique({
         where: {
-          studentId_courseId_semester_year: {
+          studentId_courseId_year: {
             studentId: student.id,
             courseId: course.id,
-            semester: cls.semester,
-            year: cls.year,
+            year: examYear,
           },
         },
       });
@@ -221,8 +219,7 @@ export async function POST(req: NextRequest) {
           data: {
             studentId: student.id,
             courseId: course.id,
-            semester: cls.semester,
-            year: cls.year,
+            year: examYear,
             scores,
             totalMarks,
             grade,
@@ -249,10 +246,4 @@ function parseNum(val: string | number | undefined): number {
   if (val === undefined || val === null || val === "") return 0;
   const n = Number(val);
   return Number.isNaN(n) ? 0 : n;
-}
-
-function parseNumOrNull(val: string | number | undefined): number | null {
-  if (val === undefined || val === null || val === "") return null;
-  const n = Number(val);
-  return Number.isNaN(n) ? null : n;
 }

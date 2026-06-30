@@ -11,8 +11,7 @@ import { ChevronLeftIcon } from "@/icons";
 type ClassOption = {
   id: number;
   name: string;
-  semester: string;
-  year: number;
+    year: number;
   department: { code: string; id: number };
 };
 
@@ -22,7 +21,7 @@ type SearchStudent = {
   firstName: string;
   lastName: string;
   department: { id: number; name: string; code: string };
-  class: { id: number; name: string; semester: string; year: number; department: { code: string } } | null;
+  class: { id: number; name: string; year: number; department: { code: string } } | null;
 };
 
 export default function UpgradeStudentsPage() {
@@ -47,12 +46,10 @@ export default function UpgradeStudentsPage() {
       if (r.ok) {
         const d = await r.json();
         setClasses(
-          d.map((c: { id: number; name: string; semester: string; year: number; department?: { code: string; id: number } }) => ({
+          d.map((c: { id: number; name: string; year: number; department?: { code: string; id: number } }) => ({
             id: c.id,
             name: c.name,
-            semester: c.semester,
-            year: c.year,
-            department: { code: c.department?.code ?? "", id: c.department?.id ?? 0 },
+                        department: { code: c.department?.code ?? "", id: c.department?.id ?? 0 },
           }))
         );
       }
@@ -132,7 +129,7 @@ export default function UpgradeStudentsPage() {
         setSubmitting(false);
         return;
       }
-      setSuccess({ count: data.upgraded, target: `${data.targetClass.name} (${data.targetClass.semester} ${data.targetClass.year})` });
+      setSuccess({ count: data.upgraded, target: `${data.targetClass.name} (${data.targetClass.year})` });
       if (mode === "class") {
         setSourceClassId("");
         setTargetClassId("");
@@ -216,7 +213,7 @@ export default function UpgradeStudentsPage() {
                   <option value="">— Select class —</option>
                   {classes.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} — {c.department.code} ({c.semester} {c.year})
+                      {c.name} — {c.department.code} ({c.year})
                     </option>
                   ))}
                 </select>
@@ -232,7 +229,7 @@ export default function UpgradeStudentsPage() {
                   <option value="">— Select target class —</option>
                   {targetClassOptions.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} — {c.department.code} ({c.semester} {c.year})
+                      {c.name} — {c.department.code} ({c.year})
                     </option>
                   ))}
                   {sourceClassId && targetClassOptions.length === 0 && (
@@ -301,7 +298,7 @@ export default function UpgradeStudentsPage() {
                   <option value="">— Select target class —</option>
                   {targetClassOptionsForStudent.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} — {c.department.code} ({c.semester} {c.year})
+                      {c.name} — {c.department.code} ({c.year})
                     </option>
                   ))}
                 </select>

@@ -2,7 +2,11 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import PageBreadCrumb from "@/components/common/PageBreadCrumb";
+import ReportPageShell from "@/components/reports/ReportPageShell";
+import ReportCard from "@/components/reports/ReportCard";
+import ReportContentArea from "@/components/reports/ReportContentArea";
+import ReportSummaryBar from "@/components/reports/ReportSummaryBar";
+import ReportLoadingState from "@/components/reports/ReportLoadingState";
 import Button from "@/components/ui/button/Button";
 import {
   Table,
@@ -14,12 +18,22 @@ import {
 } from "@/components/ui/table";
 import { usePagination } from "@/hooks/usePagination";
 import { authFetch } from "@/lib/api";
-import { DownloadIcon } from "@/icons";
+import { exportReportCsv } from "@/lib/report-utils";
 
-type Bank = { id: number; name: string; code: string; balance: number; accountNumber?: string | null };
+type Bank = {
+  id: number;
+  name: string;
+  code: string;
+  balance: number;
+  accountNumber?: string | null;
+};
 
 export default function BankBalancesReportPage() {
-  const [data, setData] = useState<{ banks: Bank[]; totalBalance: number; generatedAt: string } | null>(null);
+  const [data, setData] = useState<{
+    banks: Bank[];
+    totalBalance: number;
+    generatedAt: string;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
@@ -27,7 +41,9 @@ export default function BankBalancesReportPage() {
     try {
       const res = await authFetch("/api/finance/bank-balances");
       if (res.ok) setData(await res.json());
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
     setLoading(false);
   }, []);
 
@@ -48,82 +64,106 @@ export default function BankBalancesReportPage() {
     to,
   } = usePagination(banksList, [data]);
 
-  const handlePrint = () => window.print();
   const handleExportCSV = () => {
     if (!data?.banks.length) return;
-    const headers = ["Code", "Name", "Account Number", "Balance"];
-    const rows = data.banks.map((b) => [b.code, b.name, b.accountNumber || "", (b.balance ?? 0).toFixed(2)]);
-    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Bank_Balances_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportReportCsv(
+      `Account_Balances_${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Code", "Name", "Account Number", "Balance"],
+      data.banks.map((b) => [
+        b.code,
+        b.name,
+        b.accountNumber || "",
+        (b.balance ?? 0).toFixed(2),
+      ])
+    );
   };
 
+  const printMeta = data
+    ? [
+        { label: "Accounts", value: data.banks.length },
+        {
+          label: "Total Balance",
+          value: `$${data.totalBalance.toLocaleString()}`,
+        },
+        {
+          label: "Generated",
+          value: new Date(data.generatedAt).toLocaleString(),
+        },
+      ]
+    : [];
+
   return (
-    <div className="report-print-area">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 no-print">
-        <PageBreadCrumb pageTitle="Bank Balances Report" />
-        <div className="flex gap-2">
-          <Link href="/reports/payment">
-            <Button variant="outline" size="sm">← All Reports</Button>
-          </Link>
-          <Button variant="outline" size="sm" startIcon={<DownloadIcon />} onClick={handleExportCSV}>
-            Export CSV
+    <ReportPageShell
+      pageTitle="Account Balances Report"
+      onExportCsv={handleExportCSV}
+      exportDisabled={!data?.banks.length}
+      actions={
+        <Link href="/reports/payment">
+          <Button variant="outline" size="sm">
+            ← All Reports
           </Button>
-          <Button size="sm" onClick={handlePrint}>Print</Button>
-        </div>
-      </div>
-
-      <div className="mb-4 print:block hidden print:mb-2">
-        <h1 className="text-xl font-bold text-gray-900">Bank Balances Report</h1>
-        <p className="text-sm text-gray-600">Generated: {data?.generatedAt ? new Date(data.generatedAt).toLocaleString() : "—"}</p>
-      </div>
-
-      <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/5">
+        </Link>
+      }
+    >
+      <ReportCard>
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-brand-500" />
-          </div>
+          <ReportLoadingState />
         ) : data ? (
-          <>
-            <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Bank Account Balances</h3>
-                <div className="rounded-xl bg-brand-50 px-5 py-3 dark:bg-brand-500/10">
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Balance: </span>
-                  <span className="text-xl font-bold text-brand-600 dark:text-brand-400">
+          <ReportContentArea
+            title="Account Balances Report"
+            printMeta={printMeta}
+            summary={
+              <ReportSummaryBar>
+                <span className="text-gray-600 dark:text-gray-400">
+                  <strong className="text-gray-800 dark:text-white/80">
+                    {data.banks.length}
+                  </strong>{" "}
+                  {data.banks.length === 1 ? "account" : "accounts"}
+                </span>
+                <span className="text-brand-700 dark:text-brand-400">
+                  <strong className="text-gray-800 dark:text-white/80">
                     ${data.totalBalance.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
+                  </strong>{" "}
+                  total balance
+                </span>
+              </ReportSummaryBar>
+            }
+          >
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-transparent! hover:bg-transparent!">
                     <TableCell isHeader>#</TableCell>
                     <TableCell isHeader>Code</TableCell>
-                    <TableCell isHeader>Bank Name</TableCell>
+                    <TableCell isHeader>Account Name</TableCell>
                     <TableCell isHeader>Account Number</TableCell>
-                    <TableCell isHeader className="text-right">Balance</TableCell>
+                    <TableCell isHeader className="text-right">
+                      Balance
+                    </TableCell>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedBanks.map((b, idx) => (
-                    <TableRow key={b.id}>
-                      <TableCell className="text-gray-500">{(page - 1) * pageSize + idx + 1}</TableCell>
-                      <TableCell className="font-mono font-medium">{b.code}</TableCell>
-                      <TableCell>{b.name}</TableCell>
-                      <TableCell>{b.accountNumber || "—"}</TableCell>
-                      <TableCell className="text-right font-semibold text-green-600 dark:text-green-400">
-                        ${(b.balance ?? 0).toLocaleString()}
+                  {paginatedBanks.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-12 text-center text-gray-500">
+                        No bank accounts found.
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    paginatedBanks.map((b, idx) => (
+                      <TableRow key={b.id}>
+                        <TableCell className="text-gray-500">
+                          {(page - 1) * pageSize + idx + 1}
+                        </TableCell>
+                        <TableCell className="font-mono font-medium">{b.code}</TableCell>
+                        <TableCell>{b.name}</TableCell>
+                        <TableCell>{b.accountNumber || "—"}</TableCell>
+                        <TableCell className="text-right font-semibold text-green-600 dark:text-green-400">
+                          ${(b.balance ?? 0).toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
               <TablePagination
@@ -138,11 +178,11 @@ export default function BankBalancesReportPage() {
                 onPageSizeChange={setPageSize}
               />
             </div>
-          </>
+          </ReportContentArea>
         ) : (
           <div className="py-16 text-center text-gray-500">No data available.</div>
         )}
-      </div>
-    </div>
+      </ReportCard>
+    </ReportPageShell>
   );
 }

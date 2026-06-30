@@ -19,16 +19,12 @@ import { ModalOverlayGate } from "@/context/ModalOverlayContext";
 import { useAuth } from "@/context/AuthContext";
 import { PencilIcon, PlusIcon, TrashBinIcon } from "@/icons";
 
-type Faculty = { id: number; name: string; code: string };
-
 type DepartmentRow = {
   id: number;
   name: string;
   code: string;
   description: string | null;
-  facultyId: number;
-  faculty: Faculty;
-  tuitionFee: number | null;
+  registrationFee: number | null;
   isActive: boolean;
   createdAt: string;
 };
@@ -36,18 +32,15 @@ type DepartmentRow = {
 export default function DepartmentsPage() {
   const { hasPermission } = useAuth();
   const [departments, setDepartments] = useState<DepartmentRow[]>([]);
-  const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterFacultyId, setFilterFacultyId] = useState<string>("all");
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     code: "",
     description: "",
-    facultyId: "",
-    tuitionFee: "",
+    registrationFee: "",
   });
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +55,7 @@ export default function DepartmentsPage() {
     totalPages,
     from,
     to,
-  } = useServerPagination([search, filterFacultyId]);
+  } = useServerPagination([search]);
 
   const canCreate = hasPermission("departments.create");
   const canEdit = hasPermission("departments.edit");
@@ -75,7 +68,6 @@ export default function DepartmentsPage() {
       params.set("page", String(page));
       params.set("pageSize", String(pageSize));
       if (search.trim()) params.set("q", search.trim());
-      if (filterFacultyId !== "all") params.set("facultyId", filterFacultyId);
       const res = await authFetch(`/api/departments?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -88,23 +80,7 @@ export default function DepartmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, filterFacultyId, setTotal]);
-
-  async function loadFaculties() {
-    const res = await authFetch("/api/faculties");
-    if (res.ok) {
-      const data = await res.json();
-      setFaculties(data.map((f: Faculty & { departmentCount?: number }) => ({
-        id: f.id,
-        name: f.name,
-        code: f.code,
-      })));
-    }
-  }
-
-  useEffect(() => {
-    void loadFaculties();
-  }, []);
+  }, [page, pageSize, search, setTotal]);
 
   useEffect(() => {
     void loadDepartments();
@@ -117,8 +93,7 @@ export default function DepartmentsPage() {
       name: "",
       code: "",
       description: "",
-      facultyId: faculties[0] ? String(faculties[0].id) : "",
-      tuitionFee: "",
+      registrationFee: "",
     });
     setSubmitError("");
   }
@@ -130,8 +105,7 @@ export default function DepartmentsPage() {
       name: d.name,
       code: d.code,
       description: d.description ?? "",
-      facultyId: String(d.facultyId),
-      tuitionFee: d.tuitionFee != null ? String(d.tuitionFee) : "",
+      registrationFee: d.registrationFee != null ? String(d.registrationFee) : "",
     });
     setSubmitError("");
   }
@@ -145,8 +119,7 @@ export default function DepartmentsPage() {
         name: form.name,
         code: form.code,
         description: form.description || undefined,
-        facultyId: Number(form.facultyId),
-        tuitionFee: form.tuitionFee ? Number(form.tuitionFee) : undefined,
+        registrationFee: form.registrationFee ? Number(form.registrationFee) : undefined,
       };
 
       if (modal === "add") {
@@ -232,19 +205,6 @@ export default function DepartmentsPage() {
             </span>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            {/* Faculty Filter */}
-            <select
-              value={filterFacultyId}
-              onChange={(e) => setFilterFacultyId(e.target.value)}
-              className="h-10 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300 dark:focus:border-brand-500/40"
-            >
-              <option value="all">All Faculties</option>
-              {faculties.map((f) => (
-                <option key={f.id} value={String(f.id)}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
             {/* Search */}
             <div className="relative w-full sm:w-56">
               <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -274,7 +234,7 @@ export default function DepartmentsPage() {
               </svg>
             </div>
             <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-              {search || filterFacultyId !== "all"
+              {search
                 ? "No departments match your filters."
                 : "No departments yet. Create one to get started."}
             </p>
@@ -287,8 +247,7 @@ export default function DepartmentsPage() {
                 <TableCell isHeader>#</TableCell>
                 <TableCell isHeader>Department</TableCell>
                 <TableCell isHeader>Code</TableCell>
-                <TableCell isHeader>Faculty</TableCell>
-                <TableCell isHeader>Tuition Fee</TableCell>
+                <TableCell isHeader>Registration Fee</TableCell>
                 <TableCell isHeader>Description</TableCell>
                 <TableCell isHeader>Status</TableCell>
                 <TableCell isHeader className="text-right">Actions</TableCell>
@@ -313,11 +272,8 @@ export default function DepartmentsPage() {
                   <TableCell>
                     <Badge color="primary" size="sm">{d.code}</Badge>
                   </TableCell>
-                  <TableCell>
-                    <Badge color="info" size="sm">{d.faculty.name}</Badge>
-                  </TableCell>
                   <TableCell className="text-sm">
-                    {d.tuitionFee != null ? `$${Number(d.tuitionFee).toLocaleString()}` : "—"}
+                    {d.registrationFee != null ? `$${Number(d.registrationFee).toLocaleString()}` : "—"}
                   </TableCell>
                   <TableCell className="max-w-[180px] truncate text-gray-500 dark:text-gray-400">
                     {d.description || "—"}
@@ -411,50 +367,30 @@ export default function DepartmentsPage() {
                     className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500/40"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Code <span className="text-error-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={10}
-                      value={form.code}
-                      onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
-                      placeholder="e.g. CS"
-                      className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm font-mono uppercase text-gray-800 outline-none placeholder:text-gray-400 placeholder:font-sans placeholder:normal-case focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500/40"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Faculty <span className="text-error-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={form.facultyId}
-                      onChange={(e) => setForm((f) => ({ ...f, facultyId: e.target.value }))}
-                      className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:focus:border-brand-500/40"
-                    >
-                      <option value="">Select a faculty</option>
-                      {faculties.map((f) => (
-                        <option key={f.id} value={String(f.id)}>
-                          {f.name} ({f.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Code <span className="text-error-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={10}
+                    value={form.code}
+                    onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                    placeholder="e.g. CS"
+                    className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm font-mono uppercase text-gray-800 outline-none placeholder:text-gray-400 placeholder:font-sans placeholder:normal-case focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500/40"
+                  />
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Tuition Fee
+                    Registration Fee
                   </label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    value={form.tuitionFee}
-                    onChange={(e) => setForm((f) => ({ ...f, tuitionFee: e.target.value }))}
+                    value={form.registrationFee}
+                    onChange={(e) => setForm((f) => ({ ...f, registrationFee: e.target.value }))}
                     placeholder="e.g. 5000"
                     className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500/40"
                   />

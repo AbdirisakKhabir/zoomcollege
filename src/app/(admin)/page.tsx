@@ -1,52 +1,19 @@
 import type { Metadata } from "next";
 import React from "react";
-import PageBreadCrumb from "@/components/common/PageBreadCrumb";
-import DashboardMetrics from "@/components/dashboard/DashboardMetrics";
-import RecentStudents from "@/components/dashboard/RecentStudents";
-import RecentAttendance from "@/components/dashboard/RecentAttendance";
-import RevenueChart from "@/components/dashboard/RevenueChart";
-import StudentsByDepartmentChart from "@/components/dashboard/StudentsByDepartmentChart";
-import StudentsByStatusChart from "@/components/dashboard/StudentsByStatusChart";
-import AttendanceChart from "@/components/dashboard/AttendanceChart";
+import DashboardContent from "@/components/dashboard/DashboardContent";
+import { DashboardProvider } from "@/components/dashboard/DashboardContext";
+
+import { BRAND, pageTitle } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "Abaarso Tech University | Dashboard",
-  description: "Abaarso Tech University Dashboard",
+  title: pageTitle("Dashboard"),
+  description: `${BRAND.name} Dashboard`,
 };
 
 export default function DashboardPage() {
   return (
-    <div>
-      <PageBreadCrumb pageTitle="Dashboard" />
-      <div className="grid grid-cols-12 gap-4 md:gap-6">
-        <div className="col-span-12 space-y-6">
-          <DashboardMetrics />
-        </div>
-
-        <div className="col-span-12 lg:col-span-8">
-          <RevenueChart />
-        </div>
-
-        <div className="col-span-12 lg:col-span-4">
-          <StudentsByStatusChart />
-        </div>
-
-        <div className="col-span-12 lg:col-span-7">
-          <StudentsByDepartmentChart />
-        </div>
-
-        <div className="col-span-12 lg:col-span-5">
-          <AttendanceChart />
-        </div>
-
-        <div className="col-span-12 lg:col-span-7">
-          <RecentStudents />
-        </div>
-
-        <div className="col-span-12 lg:col-span-5">
-          <RecentAttendance />
-        </div>
-      </div>
-    </div>
+    <DashboardProvider>
+      <DashboardContent />
+    </DashboardProvider>
   );
 }

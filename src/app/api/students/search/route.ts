@@ -30,19 +30,17 @@ export async function GET(req: NextRequest) {
       },
       take: limit,
       include: {
-        department: { select: { id: true, name: true, code: true, tuitionFee: true } },
+        department: { select: { id: true, name: true, code: true, registrationFee: true } },
         class: {
           select: {
             id: true,
             name: true,
-            semester: true,
-            year: true,
             department: { select: { code: true, name: true } },
           },
         },
         tuitionPayments: {
-          orderBy: [{ year: "desc" }, { semester: "asc" }],
-          select: { id: true, semester: true, year: true, amount: true, paidAt: true },
+          orderBy: [{ year: "desc" }],
+          select: { id: true, year: true, amount: true, paidAt: true },
         },
       },
       orderBy: { studentId: "asc" },

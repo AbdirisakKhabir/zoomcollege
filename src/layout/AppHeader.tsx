@@ -1,11 +1,13 @@
 "use client";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
+import DepartmentSwitcher from "@/components/header/DepartmentSwitcher";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useModalOverlay } from "@/context/ModalOverlayContext";
 import { useSidebar } from "@/context/SidebarContext";
 import Image from "next/image";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 import React, { useState ,useEffect,useRef} from "react";
 
 const AppHeader: React.FC = () => {
@@ -92,15 +94,15 @@ const AppHeader: React.FC = () => {
               width={154}
               height={32}
               className="object-contain dark:hidden"
-              src="/logo/era-pre-university.png"
-              alt="Era Pre-University"
+              src={BRAND.logoUrl}
+              alt={BRAND.logoAlt}
             />
             <Image
               width={154}
               height={32}
               className="hidden object-contain dark:block"
-              src="/logo/era-pre-university.png"
-              alt="Era Pre-University"
+              src={BRAND.logoUrl}
+              alt={BRAND.logoAlt}
             />
           </Link>
 
@@ -165,6 +167,7 @@ const AppHeader: React.FC = () => {
           } items-center justify-between w-full gap-4 px-5 py-4 lg:flex shadow-theme-md lg:justify-end lg:px-0 lg:shadow-none`}
         >
           <div className="flex items-center gap-2 2xsm:gap-3">
+            <DepartmentSwitcher />
             {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}

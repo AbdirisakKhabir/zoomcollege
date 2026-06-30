@@ -3,17 +3,26 @@
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
+import AuthThemeToggle from "@/components/auth/AuthThemeToggle";
 import Link from "next/link";
 import Image from "next/image";
 import React, { useState, useEffect } from "react";
+import { AlertCircle, Eye, EyeOff, Loader2, Lock, LogIn, Mail } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND } from "@/lib/brand";
 import { normalizeRedirectParam, redirectAfterAuth } from "@/lib/auth-client-redirect";
 import { useSearchParams } from "next/navigation";
 
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen flex-1 items-center justify-center bg-white font-sans dark:bg-gray-950">
+      <Loader2 className="size-8 animate-spin text-brand-500" strokeWidth={1.75} />
+    </div>
+  );
+}
+
 export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
-  const [isChecked, setIsChecked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -22,7 +31,6 @@ export default function SignInForm() {
   const searchParams = useSearchParams();
   const redirect = normalizeRedirectParam(searchParams.get("redirect"));
 
-  // Redirect if already logged in
   useEffect(() => {
     if (isLoading) return;
     if (user) {
@@ -48,104 +56,127 @@ export default function SignInForm() {
   };
 
   if (isLoading || user) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <span className="text-gray-500 dark:text-gray-400">Loading...</span>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
-    <div className="flex flex-col flex-1 lg:w-1/2 w-full">
-      <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-        >
-          <ChevronLeftIcon />
-          Back to dashboard
+    <div className="flex min-h-screen flex-1 flex-col bg-white font-sans dark:bg-gray-950 lg:w-[52%] xl:w-1/2">
+      <header className="flex items-center justify-between px-6 py-5 sm:px-10">
+        <Link href="/" className="lg:hidden">
+          <Image
+            src={BRAND.logoUrl}
+            alt={BRAND.logoAlt}
+            width={140}
+            height={40}
+            className="h-10 w-auto object-contain"
+            priority
+          />
         </Link>
-      </div>
-      <div className="flex flex-col justify-center flex-1 w-full max-w-md mx-auto">
-        <div>
-          <div className="mb-5 sm:mb-8">
-            <Link href="/" className="inline-block mb-5">
-              <Image
-                src="/logo/era-pre-university.png"
-                alt="Era Pre-University"
-                width={160}
-                height={44}
-                className="object-contain h-10 w-auto"
-                priority
-              />
-            </Link>
-            <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-              Era Pre-University
+        <div className="hidden lg:block" />
+        <AuthThemeToggle />
+      </header>
+
+      <div className="flex flex-1 items-center justify-center px-6 pb-12 sm:px-10">
+        <div className="w-full max-w-[420px]">
+          <div className="mb-8">
+            <div className="mb-4 inline-flex size-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+              <LogIn className="size-5" strokeWidth={1.75} />
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+              Sign in
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Sign in with your email and password.
+            <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+              {BRAND.name}
             </p>
           </div>
-          <div>
-            <div className="relative py-3 sm:py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400"
+              >
+                <AlertCircle className="mt-0.5 size-4 shrink-0" strokeWidth={1.75} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="signin-email">
+                Email <span className="text-error-500">*</span>
+              </Label>
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                  strokeWidth={1.75}
+                />
+                <Input
+                  id="signin-email"
+                  name="email"
+                  type="email"
+                  placeholder={`name@${BRAND.emailDomain}`}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10"
+                  error={!!error && !email.trim()}
+                />
               </div>
             </div>
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-6">
-                {error && (
-                  <p className="text-sm text-error-500 bg-error-500/10 rounded-lg px-3 py-2">
-                    {error}
-                  </p>
-                )}
-                <div>
-                  <Label>
-                    Email <span className="text-error-500">*</span>{" "}
-                  </Label>
-                  <Input
-                    placeholder="Example@gmail.com"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>
-                    Password <span className="text-error-500">*</span>{" "}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                    <span
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2"
-                    >
-                      {showPassword ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
-                      ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <Button
-                    className="w-full"
-                    size="sm"
-                    type="submit"
-                    disabled={loading}
-                  >
-                    {loading ? "Signing in..." : "Sign in"}
-                  </Button>
-                </div>
+
+            <div>
+              <Label htmlFor="signin-password">
+                Password <span className="text-error-500">*</span>
+              </Label>
+              <div className="relative">
+                <Lock
+                  className="pointer-events-none absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                  strokeWidth={1.75}
+                />
+                <Input
+                  id="signin-password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10 pr-11"
+                  error={!!error && !password}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-[18px]" strokeWidth={1.75} />
+                  ) : (
+                    <Eye className="size-[18px]" strokeWidth={1.75} />
+                  )}
+                </button>
               </div>
-            </form>
-          </div>
+            </div>
+
+            <Button
+              className="w-full !gap-2 !py-3"
+              size="md"
+              type="submit"
+              disabled={loading}
+              startIcon={
+                loading ? (
+                  <Loader2 className="size-4 animate-spin" strokeWidth={1.75} />
+                ) : (
+                  <LogIn className="size-4" strokeWidth={1.75} />
+                )
+              }
+            >
+              {loading ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+
+          <p className="mt-10 text-center text-xs text-gray-400 dark:text-gray-500">
+            © {new Date().getFullYear()} {BRAND.name}
+          </p>
         </div>
       </div>
     </div>

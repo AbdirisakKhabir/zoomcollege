@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getActiveSemesterNames } from "@/lib/semesters";
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,7 +12,6 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const departmentId = searchParams.get("departmentId");
     const classId = searchParams.get("classId");
-    const year = searchParams.get("year");
     const phone = searchParams.get("phone")?.trim();
     const search = searchParams.get("search")?.trim();
     const dateFrom = searchParams.get("dateFrom")?.trim();
@@ -39,31 +37,25 @@ export async function GET(req: NextRequest) {
       where.phone = { contains: phone };
     }
 
-    const paymentWhere: { year?: number; paidAt?: { gte?: Date; lte?: Date } } = {};
-    if (year) paymentWhere.year = Number(year);
+    const paymentWhere: { paidAt?: { gte?: Date; lte?: Date } } = {};
     if (dateFrom) paymentWhere.paidAt = { ...(paymentWhere.paidAt || {}), gte: new Date(dateFrom + "T00:00:00.000Z") };
     if (dateTo) paymentWhere.paidAt = { ...(paymentWhere.paidAt || {}), lte: new Date(dateTo + "T23:59:59.999Z") };
 
     const students = await prisma.student.findMany({
       where,
       include: {
-        department: { select: { id: true, name: true, code: true, tuitionFee: true } },
-        class: { select: { id: true, name: true, semester: true, year: true, department: { select: { code: true } } } },
+        department: { select: { id: true, name: true, code: true, registrationFee: true } },
+        class: { select: { id: true, name: true, department: { select: { code: true } } } },
         tuitionPayments: {
           where: Object.keys(paymentWhere).length > 0 ? paymentWhere : undefined,
-          select: { id: true, semester: true, year: true, amount: true, paidAt: true },
+          select: { id: true, year: true, amount: true, paidAt: true },
         },
       },
       orderBy: [{ studentId: "asc" }],
     });
 
-    const yearFilter = year ? Number(year) : new Date().getFullYear();
-    const activeSemesterNames = await getActiveSemesterNames();
-
     const result = students.map((s) => {
-      const paidSemesters = s.tuitionPayments.map((p) => `${p.semester}-${p.year}`);
-      const allSemestersForYear = activeSemesterNames.map((sem) => `${sem}-${yearFilter}`);
-      const unpaidSemesters = allSemestersForYear.filter((sem) => !paidSemesters.includes(sem));
+      const hasPaidRegistration = s.tuitionPayments.length > 0;
       const totalPaid = s.tuitionPayments.reduce((sum, p) => sum + p.amount, 0);
 
       return {
@@ -73,12 +65,11 @@ export async function GET(req: NextRequest) {
         lastName: s.lastName,
         department: s.department,
         class: s.class,
-        tuitionFee: s.department.tuitionFee,
+        registrationFee: s.department.registrationFee,
         payments: s.tuitionPayments,
         paidCount: s.tuitionPayments.length,
-        unpaidCount: unpaidSemesters.length,
-        paidSemesters,
-        unpaidSemesters,
+        unpaidCount: hasPaidRegistration ? 0 : 1,
+        hasPaidRegistration,
         totalPaid,
       };
     });

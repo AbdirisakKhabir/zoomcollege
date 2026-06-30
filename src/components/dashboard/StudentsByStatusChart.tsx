@@ -1,114 +1,104 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import Link from "next/link";
+import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { ApexOptions } from "apexcharts";
-import { authFetch } from "@/lib/api";
+import { useTheme } from "@/context/ThemeContext";
+import { useDashboard } from "./DashboardContext";
+import DashboardCard from "./DashboardCard";
+import { getBaseChartOptions } from "./chartTheme";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
-
-type StatusItem = { status: string; count: number };
 
 const STATUS_COLORS: Record<string, string> = {
   Admitted: "#10b981",
   Pending: "#f59e0b",
   Rejected: "#ef4444",
   Graduated: "#6366f1",
+  Inactive: "#9ca3af",
+  Withdrawn: "#94a3b8",
 };
 
 export default function StudentsByStatusChart() {
-  const [data, setData] = useState<StatusItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { theme } = useTheme();
+  const { data, loading } = useDashboard();
+  const statusData = data?.studentsByStatus ?? [];
 
-  useEffect(() => {
-    authFetch("/api/dashboard")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((d) => {
-        if (d?.studentsByStatus) setData(d.studentsByStatus);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const total = statusData.reduce((s, i) => s + i.count, 0);
 
-  if (loading) {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm dark:border-gray-800 dark:bg-white/5 sm:px-6">
-        <div className="h-8 w-40 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-        <div className="mt-6 h-[280px] animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
-      </div>
-    );
-  }
-
-  const series = data.map((d) => d.count);
-  const labels = data.map((d) => d.status);
-  const colors = data.map((d) => STATUS_COLORS[d.status] ?? "#6366f1");
-
-  const options: ApexOptions = {
-    chart: {
-      fontFamily: "Roboto, sans-serif",
-      type: "donut",
-      toolbar: { show: false },
-    },
-    colors,
-    labels,
-    legend: {
-      position: "bottom",
-      horizontalAlign: "center",
-    },
-    dataLabels: {
-      enabled: true,
-      formatter: (val: number) => `${Math.round(val)}%`,
-    },
-    plotOptions: {
-      pie: {
-        donut: {
-          size: "70%",
-          labels: {
-            show: true,
-            total: {
+  const options: ApexOptions = useMemo(() => {
+    const base = getBaseChartOptions(theme);
+    const colors = statusData.map((d) => STATUS_COLORS[d.status] ?? "#6366f1");
+    return {
+      ...base,
+      chart: { ...base.chart, type: "donut" },
+      colors,
+      labels: statusData.map((d) => d.status),
+      legend: {
+        position: "bottom",
+        horizontalAlign: "center",
+        labels: { colors: theme === "dark" ? "#9CA3AF" : "#6B7280" },
+      },
+      dataLabels: {
+        enabled: true,
+        formatter: (val: number) => `${Math.round(val)}%`,
+        style: { fontSize: "11px", fontWeight: "600" },
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: "72%",
+            labels: {
               show: true,
-              label: "Total",
-              formatter: () => {
-                const total = data.reduce((s, i) => s + i.count, 0);
-                return total.toString();
+              name: { show: true, fontSize: "13px", color: theme === "dark" ? "#D1D5DB" : "#374151" },
+              value: {
+                show: true,
+                fontSize: "22px",
+                fontWeight: "700",
+                color: theme === "dark" ? "#F9FAFB" : "#111827",
+                formatter: (val) => val,
+              },
+              total: {
+                show: true,
+                label: "Total",
+                fontSize: "13px",
+                color: theme === "dark" ? "#9CA3AF" : "#6B7280",
+                formatter: () => total.toString(),
               },
             },
           },
         },
       },
-    },
-    tooltip: {
-      y: { formatter: (val: number) => `${val} students` },
-    },
-  };
+      tooltip: {
+        theme: theme === "dark" ? "dark" : "light",
+        y: { formatter: (val: number) => `${val} students` },
+      },
+    };
+  }, [theme, statusData, total]);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm dark:border-gray-800 dark:bg-white/5 sm:px-6">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400">
-            <span className="text-sm font-bold">%</span>
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Students by Status</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Applicants — donut chart</p>
-          </div>
+    <DashboardCard
+      title="Students by Status"
+      subtitle="Application pipeline breakdown"
+      icon={<span className="text-sm font-bold">%</span>}
+      iconClassName="bg-violet-500/15 text-violet-600 dark:bg-violet-500/25 dark:text-violet-400"
+      actionHref="/admission"
+      loading={loading}
+    >
+      {statusData.length === 0 ? (
+        <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
+          No data yet.
         </div>
-        <Link
-          href="/admission"
-          className="text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
-        >
-          View all
-        </Link>
-      </div>
-      {data.length === 0 ? (
-        <div className="flex h-[280px] items-center justify-center text-gray-500">No data yet.</div>
       ) : (
-        <div className="min-h-[280px]">
-          <ReactApexChart options={options} series={series} type="donut" height={280} />
+        <div className="min-h-[300px]">
+          <ReactApexChart
+            options={options}
+            series={statusData.map((d) => d.count)}
+            type="donut"
+            height={300}
+          />
         </div>
       )}
-    </div>
+    </DashboardCard>
   );
 }

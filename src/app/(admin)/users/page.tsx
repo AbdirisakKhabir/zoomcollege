@@ -15,6 +15,7 @@ import { globalRowIndex } from "@/hooks/usePagination";
 import { useServerPagination } from "@/hooks/useServerPagination";
 import Badge from "@/components/ui/badge/Badge";
 import { authFetch } from "@/lib/api";
+import { BRAND } from "@/lib/brand";
 import { ModalOverlayGate } from "@/context/ModalOverlayContext";
 import { useAuth } from "@/context/AuthContext";
 import { PencilIcon, PlusIcon, TrashBinIcon } from "@/icons";
@@ -25,16 +26,26 @@ type UserRow = {
   name: string | null;
   roleId: number;
   isActive: boolean;
+  isSuperAdmin: boolean;
   createdAt: string;
   role: { name: string };
+  departmentAssignments: {
+    departmentId: number;
+    roleId: number;
+    department: { id: number; name: string; code: string };
+    role: { id: number; name: string };
+  }[];
 };
 
 type Role = { id: number; name: string; description: string | null };
+type DepartmentOption = { id: number; name: string; code: string };
+type AssignmentFormRow = { departmentId: string; roleId: string };
 
 export default function UsersPage() {
   const { user: authUser, hasPermission } = useAuth();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"add" | "edit" | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -44,6 +55,8 @@ export default function UsersPage() {
     password: "",
     name: "",
     roleId: "",
+    isSuperAdmin: false,
+    assignments: [] as AssignmentFormRow[],
   });
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -93,8 +106,17 @@ export default function UsersPage() {
     }
   }
 
+  async function loadDepartments() {
+    const res = await authFetch("/api/departments");
+    if (res.ok) {
+      const data = await res.json();
+      setDepartments(Array.isArray(data) ? data : []);
+    }
+  }
+
   useEffect(() => {
     void loadRoles();
+    void loadDepartments();
   }, []);
 
   useEffect(() => {
@@ -109,6 +131,8 @@ export default function UsersPage() {
       password: "",
       name: "",
       roleId: roles[0] ? String(roles[0].id) : "",
+      isSuperAdmin: false,
+      assignments: [{ departmentId: "", roleId: roles[0] ? String(roles[0].id) : "" }],
     });
     setSubmitError("");
   }
@@ -121,8 +145,46 @@ export default function UsersPage() {
       password: "",
       name: u.name ?? "",
       roleId: String(u.roleId),
+      isSuperAdmin: u.isSuperAdmin,
+      assignments:
+        u.departmentAssignments.length > 0
+          ? u.departmentAssignments.map((a) => ({
+              departmentId: String(a.departmentId),
+              roleId: String(a.roleId),
+            }))
+          : [{ departmentId: "", roleId: String(u.roleId) }],
     });
     setSubmitError("");
+  }
+
+  function addAssignmentRow() {
+    setForm((f) => ({
+      ...f,
+      assignments: [
+        ...f.assignments,
+        { departmentId: "", roleId: f.roleId || (roles[0] ? String(roles[0].id) : "") },
+      ],
+    }));
+  }
+
+  function removeAssignmentRow(index: number) {
+    setForm((f) => ({
+      ...f,
+      assignments: f.assignments.filter((_, i) => i !== index),
+    }));
+  }
+
+  function updateAssignmentRow(
+    index: number,
+    field: keyof AssignmentFormRow,
+    value: string
+  ) {
+    setForm((f) => ({
+      ...f,
+      assignments: f.assignments.map((row, i) =>
+        i === index ? { ...row, [field]: value } : row
+      ),
+    }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -130,6 +192,15 @@ export default function UsersPage() {
     setSubmitError("");
     setSubmitting(true);
     try {
+      const departmentAssignments = form.isSuperAdmin
+        ? []
+        : form.assignments
+            .filter((a) => a.departmentId && a.roleId)
+            .map((a) => ({
+              departmentId: Number(a.departmentId),
+              roleId: Number(a.roleId),
+            }));
+
       if (modal === "add") {
         const res = await authFetch("/api/users", {
           method: "POST",
@@ -139,6 +210,8 @@ export default function UsersPage() {
             password: form.password,
             name: form.name || undefined,
             roleId: Number(form.roleId),
+            isSuperAdmin: form.isSuperAdmin,
+            departmentAssignments,
           }),
         });
         const data = await res.json();
@@ -153,6 +226,8 @@ export default function UsersPage() {
           email: form.email,
           name: form.name || undefined,
           roleId: Number(form.roleId),
+          isSuperAdmin: form.isSuperAdmin,
+          departmentAssignments,
         };
         if (form.password) body.password = form.password;
         const res = await authFetch(`/api/users/${editingId}`, {
@@ -264,6 +339,7 @@ export default function UsersPage() {
                 <TableCell isHeader>Name</TableCell>
                 <TableCell isHeader>Email</TableCell>
                 <TableCell isHeader>Role</TableCell>
+                <TableCell isHeader>Scope</TableCell>
                 <TableCell isHeader>Status</TableCell>
                 <TableCell isHeader>Joined</TableCell>
                 <TableCell isHeader className="text-right">
@@ -295,6 +371,21 @@ export default function UsersPage() {
                     >
                       {u.role.name}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {u.isSuperAdmin ? (
+                      <Badge color="primary" size="sm">
+                        Super Admin
+                      </Badge>
+                    ) : u.departmentAssignments.length > 0 ? (
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        {u.departmentAssignments
+                          .map((a) => `${a.department.code} (${a.role.name})`)
+                          .join(", ")}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge color={u.isActive ? "success" : "error"} size="sm">
@@ -355,7 +446,7 @@ export default function UsersPage() {
         <ModalOverlayGate>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div
-            className="w-full max-w-md animate-in fade-in zoom-in-95 rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+            className="w-full max-w-lg animate-in fade-in zoom-in-95 rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
@@ -392,7 +483,7 @@ export default function UsersPage() {
                     onChange={(e) =>
                       setForm((f) => ({ ...f, email: e.target.value }))
                     }
-                    placeholder="user@abaarsotech.edu"
+                    placeholder={`user@${BRAND.emailDomain}`}
                     className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500/40"
                   />
                 </div>
@@ -410,9 +501,22 @@ export default function UsersPage() {
                     className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500/40"
                   />
                 </div>
+                {authUser?.isSuperAdmin && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={form.isSuperAdmin}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, isSuperAdmin: e.target.checked }))
+                      }
+                      className="h-4 w-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
+                    />
+                    Super Admin (access all departments)
+                  </label>
+                )}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Role <span className="text-error-500">*</span>
+                    Default role <span className="text-error-500">*</span>
                   </label>
                   <select
                     required
@@ -429,6 +533,64 @@ export default function UsersPage() {
                     ))}
                   </select>
                 </div>
+                {!form.isSuperAdmin && (
+                  <div className="space-y-3 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                        Department access
+                      </p>
+                      <button
+                        type="button"
+                        onClick={addAssignmentRow}
+                        className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        + Add department
+                      </button>
+                    </div>
+                    {form.assignments.map((row, index) => (
+                      <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                        <select
+                          required
+                          value={row.departmentId}
+                          onChange={(e) =>
+                            updateAssignmentRow(index, "departmentId", e.target.value)
+                          }
+                          className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm dark:border-gray-700 dark:text-white"
+                        >
+                          <option value="">Department</option>
+                          {departments.map((d) => (
+                            <option key={d.id} value={String(d.id)}>
+                              {d.code} — {d.name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          required
+                          value={row.roleId}
+                          onChange={(e) =>
+                            updateAssignmentRow(index, "roleId", e.target.value)
+                          }
+                          className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm dark:border-gray-700 dark:text-white"
+                        >
+                          {roles.map((r) => (
+                            <option key={r.id} value={String(r.id)}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </select>
+                        {form.assignments.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeAssignmentRow(index)}
+                            className="h-10 rounded-lg border border-gray-200 px-3 text-xs text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Password{" "}

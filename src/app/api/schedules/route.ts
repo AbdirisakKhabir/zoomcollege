@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isValidSemester } from "@/lib/semesters";
 
 const DAYS = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 const SHIFTS = ["Morning", "Afternoon", "Evening"];
@@ -13,7 +12,7 @@ function isValidShift(s: string) {
   return SHIFTS.includes(s);
 }
 
-/** GET schedules by semester and year */
+/** GET schedules by year */
 export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthUser(req);
@@ -22,19 +21,18 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const semester = searchParams.get("semester");
     const year = searchParams.get("year");
     const classId = searchParams.get("classId");
     const yearNum = year ? Number(year) : NaN;
 
-    if (!semester || !Number.isInteger(yearNum)) {
+    if (!Number.isInteger(yearNum)) {
       return NextResponse.json(
-        { error: "semester and year query params are required" },
+        { error: "year query param is required" },
         { status: 400 }
       );
     }
 
-    const where: { semester: string; year: number; classId?: number } = { semester, year: yearNum };
+    const where: { year: number; classId?: number } = { year: yearNum };
     if (classId) where.classId = Number(classId);
 
     const schedules = await prisma.classSchedule.findMany({
@@ -75,18 +73,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const semester = String(slots[0]?.semester ?? "").trim();
     const year = Number(slots[0]?.year);
-    if (!semester || !Number.isInteger(year)) {
+    if (!Number.isInteger(year)) {
       return NextResponse.json(
-        { error: "Each slot must have semester and year" },
-        { status: 400 }
-      );
-    }
-
-    if (!(await isValidSemester(semester))) {
-      return NextResponse.json(
-        { error: "Invalid semester. Use a semester from the Semesters settings." },
+        { error: "Each slot must have year" },
         { status: 400 }
       );
     }
@@ -147,7 +137,7 @@ export async function POST(req: NextRequest) {
     }
 
     const created = await prisma.$transaction(
-      slots.map((s: { classId: number; courseId: number; lecturerId: number; dayOfWeek: string; shift: string; startTime: string; endTime: string; semester: string; year: number; room?: string }) =>
+      slots.map((s: { classId: number; courseId: number; lecturerId: number; dayOfWeek: string; shift: string; startTime: string; endTime: string; year: number; room?: string }) =>
         prisma.classSchedule.create({
           data: {
             classId: Number(s.classId),
@@ -157,7 +147,6 @@ export async function POST(req: NextRequest) {
             shift: String(s.shift).trim(),
             startTime: String(s.startTime).trim(),
             endTime: String(s.endTime).trim(),
-            semester: String(s.semester).trim(),
             year: Number(s.year),
             room: s.room ? String(s.room).trim() : null,
           },

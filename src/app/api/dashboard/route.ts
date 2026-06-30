@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { loadAuthContext } from "@/lib/department-access";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
@@ -9,12 +10,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!ctx.isSuperAdmin) {
+      return NextResponse.json({ counts: null, restricted: true });
+    }
+
     const [
       usersCount,
       studentsCount,
       admittedCount,
       rolesCount,
-      facultiesCount,
       departmentsCount,
       coursesCount,
       classesCount,
@@ -27,7 +36,6 @@ export async function GET(req: NextRequest) {
       prisma.student.count(),
       prisma.student.count({ where: { status: "Admitted" } }),
       prisma.role.count(),
-      prisma.faculty.count({ where: { isActive: true } }),
       prisma.department.count({ where: { isActive: true } }),
       prisma.course.count({ where: { isActive: true } }),
       prisma.class.count({ where: { isActive: true } }),
@@ -142,7 +150,6 @@ export async function GET(req: NextRequest) {
         students: studentsCount,
         admitted: admittedCount,
         roles: rolesCount,
-        faculties: facultiesCount,
         departments: departmentsCount,
         courses: coursesCount,
         classes: classesCount,

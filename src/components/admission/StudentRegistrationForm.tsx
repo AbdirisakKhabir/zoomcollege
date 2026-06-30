@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import Button from "@/components/ui/button/Button";
-import { DateInput } from "@/components/form/DateInput";
 import { authFetch } from "@/lib/api";
+import { ModalOverlayGate } from "@/context/ModalOverlayContext";
 import { ChevronLeftIcon, UserCircleIcon, MailIcon, GroupIcon, UserIcon } from "@/icons";
 
 type Department = { id: number; name: string; code: string };
@@ -13,8 +14,6 @@ type AcademicYearInfo = { id: number; name: string; startYear: number; endYear: 
 type ClassInfo = {
   id: number;
   name: string;
-  semester: string;
-  year: number;
   departmentId?: number;
   department?: { id: number; code: string; name: string };
 };
@@ -31,7 +30,6 @@ export type StudentFormData = {
   gender: string;
   address: string;
   departmentId: string;
-  admissionAcademicYearId: string;
   classId: string;
   program: string;
   status: string;
@@ -56,7 +54,6 @@ const defaultForm: StudentFormData = {
   gender: "",
   address: "",
   departmentId: "",
-  admissionAcademicYearId: "",
   classId: "",
   program: "",
   status: "Admitted",
@@ -97,6 +94,70 @@ export default function StudentRegistrationForm({
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(initialData?.imageUrl ?? null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [classList, setClassList] = useState<ClassInfo[]>(classes);
+  const [classModalOpen, setClassModalOpen] = useState(false);
+  const [classModalError, setClassModalError] = useState("");
+  const [classModalSubmitting, setClassModalSubmitting] = useState(false);
+  const [newClassForm, setNewClassForm] = useState({
+    name: "",
+  });
+
+  useEffect(() => {
+    setClassList(classes);
+  }, [classes]);
+
+  function openClassModal() {
+    if (!form.departmentId) {
+      setSubmitError("Select a department before creating a class.");
+      return;
+    }
+    setSubmitError("");
+    setClassModalError("");
+    setNewClassForm({ name: "" });
+    setClassModalOpen(true);
+  }
+
+  async function handleCreateClass(e: React.FormEvent) {
+    e.preventDefault();
+    setClassModalError("");
+    if (!form.departmentId) {
+      setClassModalError("Select a department first.");
+      return;
+    }
+
+    setClassModalSubmitting(true);
+    try {
+      const res = await authFetch("/api/classes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newClassForm.name.trim(),
+          departmentId: Number(form.departmentId),
+          capacity: 40,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setClassModalError(data.error || "Failed to create class");
+        return;
+      }
+      const created: ClassInfo = {
+        id: data.id,
+        name: data.name,
+        departmentId: data.departmentId,
+        department: data.department,
+      };
+      setClassList((prev) => [...prev, created]);
+      setForm((f) => ({ ...f, classId: String(created.id) }));
+      setClassModalOpen(false);
+    } finally {
+      setClassModalSubmitting(false);
+    }
+  }
+
+  const filteredClasses = classList.filter(
+    (c) => !form.departmentId || (c.departmentId ?? c.department?.id) === Number(form.departmentId)
+  );
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -151,10 +212,6 @@ export default function StudentRegistrationForm({
         gender: form.gender || undefined,
         address: form.address || undefined,
         departmentId: Number(form.departmentId),
-        admissionAcademicYearId:
-          form.admissionAcademicYearId && String(form.admissionAcademicYearId).trim() !== ""
-            ? Number(form.admissionAcademicYearId)
-            : null,
         classId: form.classId || undefined,
         program: form.program || undefined,
         status: form.status,
@@ -232,21 +289,6 @@ export default function StudentRegistrationForm({
             {submitError}
           </div>
         )}
-
-        <div className="overflow-hidden rounded-2xl border border-violet-200/80 bg-gradient-to-r from-violet-50 via-white to-indigo-50 p-5 shadow-sm dark:border-violet-800/50 dark:from-violet-950/40 dark:via-gray-900/80 dark:to-indigo-950/30">
-          <p className="text-sm font-semibold text-violet-900 dark:text-violet-200">Monthly fee payments &amp; receipts</p>
-          <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
-            To record a <strong>calendar-month</strong> fee payment (one or multiple months), choose a bank, enter the amount,
-            and print an official receipt — use{" "}
-            <Link
-              href="/finance/collect-monthly-fee"
-              className="font-semibold text-violet-700 underline decoration-violet-400/60 underline-offset-2 hover:text-violet-900 dark:text-violet-300 dark:hover:text-violet-100"
-            >
-              Finance → Collect monthly fee
-            </Link>
-            .
-          </p>
-        </div>
 
         {/* Header Card */}
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
@@ -336,33 +378,24 @@ export default function StudentRegistrationForm({
               </div>
             </div>
             <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Gender</label>
+              <select value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className={selectClass}>
+                <option value="">Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+            <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
               <textarea rows={2} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Home address" className={`${inputClass} resize-none`} />
             </div>
           </div>
         </div>
 
-        {/* Personal Details */}
+        {/* Status & Fees */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <SectionHeader icon={UserIcon} title="Personal Details" subtitle="Date of birth, gender, and status" />
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div>
-              <DateInput
-                id="student-dob"
-                label="Date of Birth"
-                value={form.dateOfBirth}
-                onChange={(v) => setForm((f) => ({ ...f, dateOfBirth: v }))}
-                inputClassName={inputClass}
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Gender</label>
-              <select value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} className={selectClass}>
-                <option value="">Select</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
-            </div>
+          <SectionHeader icon={UserIcon} title="Status & Fees" subtitle="Admission status and payment details" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
               <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={selectClass}>
@@ -375,13 +408,10 @@ export default function StudentRegistrationForm({
                 {PAYMENT_STATUSES.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
-            <div className="sm:col-span-2">
+            <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Monthly fee <span className="text-gray-400">(optional)</span>
               </label>
-              <p className="mb-1.5 text-xs text-gray-500 dark:text-gray-400">
-                Used for monthly invoicing from Finance. If empty, the department tuition fee is used.
-              </p>
               <input
                 type="number"
                 min="0"
@@ -397,8 +427,8 @@ export default function StudentRegistrationForm({
 
         {/* Academic Info */}
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <SectionHeader icon={GroupIcon} title="Academic Information" subtitle="Department, admission year, class, and program" />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SectionHeader icon={GroupIcon} title="Academic Information" subtitle="Department and class" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Department <span className="text-error-500">*</span></label>
               <select required value={form.departmentId} onChange={(e) => setForm((f) => ({ ...f, departmentId: e.target.value, classId: "" }))} className={selectClass}>
@@ -407,34 +437,24 @@ export default function StudentRegistrationForm({
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Admission academic year</label>
-              <select
-                value={form.admissionAcademicYearId}
-                onChange={(e) => setForm((f) => ({ ...f, admissionAcademicYearId: e.target.value }))}
-                className={selectClass}
-              >
-                <option value="">Optional</option>
-                {academicYears.map((y) => (
-                  <option key={y.id} value={String(y.id)}>{y.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Class</label>
-              <select value={form.classId} onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))} className={selectClass}>
-                <option value="">Optional</option>
-                {classes.filter((c) => !form.departmentId || (c.departmentId ?? c.department?.id) === Number(form.departmentId)).map((c) => (
-                  <option key={c.id} value={String(c.id)}>{c.department?.code ?? "—"} - {c.name} ({c.semester} {c.year})</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Program</label>
-              <select value={form.program} onChange={(e) => setForm((f) => ({ ...f, program: e.target.value }))} className={selectClass}>
-                <option value="">Select program</option>
-                <option value="Bachelor">Bachelor Degree</option>
-                <option value="Masters">Masters Degree</option>
-              </select>
+              <div className="flex gap-2">
+                <select value={form.classId} onChange={(e) => setForm((f) => ({ ...f, classId: e.target.value }))} className={`${selectClass} min-w-0 flex-1`}>
+                  <option value="">Optional</option>
+                  {filteredClasses.map((c) => (
+                    <option key={c.id} value={String(c.id)}>{c.department?.code ?? "—"} - {c.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={openClassModal}
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-600 transition-colors hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-600 dark:bg-gray-800/50 dark:text-gray-300 dark:hover:border-brand-500 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
+                  aria-label="Create new class"
+                  title="Create new class"
+                >
+                  <Plus className="size-5" strokeWidth={1.75} />
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -449,6 +469,57 @@ export default function StudentRegistrationForm({
           </Button>
         </div>
       </form>
+
+      {classModalOpen && (
+        <ModalOverlayGate>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+              <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">New Class</h2>
+                <button
+                  type="button"
+                  onClick={() => setClassModalOpen(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+              <form onSubmit={handleCreateClass} className="space-y-4 px-6 py-5">
+                {classModalError && (
+                  <div className="rounded-lg bg-error-50 px-4 py-3 text-sm text-error-600 dark:bg-error-500/10 dark:text-error-400">
+                    {classModalError}
+                  </div>
+                )}
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Class name <span className="text-error-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newClassForm.name}
+                    onChange={(e) => setNewClassForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Level 1-A"
+                    className={inputClass}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Department: {departments.find((d) => String(d.id) === form.departmentId)?.name ?? "—"}
+                </p>
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setClassModalOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={classModalSubmitting}>
+                    {classModalSubmitting ? "Creating..." : "Create class"}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </ModalOverlayGate>
+      )}
     </div>
   );
 }

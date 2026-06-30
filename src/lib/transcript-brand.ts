@@ -1,19 +1,21 @@
+import { BRAND } from "./brand";
+
 /**
  * University transcript brand configuration.
  * Customize these values to match your institution.
  */
 export const TRANSCRIPT_BRAND = {
-  universityName: "Era Pre-University",
+  universityName: BRAND.name,
   officeTitle: "Office of the Registrar",
   documentTitle: "Student's Cumulative Record and Partial Transcript",
-  email: "registrar@abaarsotech.edu",
-  website: "www.abaarsotech.edu",
+  email: BRAND.registrarEmail,
+  website: BRAND.website,
   /** Shown on payment receipts and similar printouts */
   contactPhone: "+252 63 3571625",
-  logoUrl: "/logo/era-pre-university.png",
-  /** Background only on the Academic Year / Semester bar (tables stay white) */
-  semesterBandBg: "#9e0539",
-  semesterBandText: "#FFFFFF",
+  logoUrl: BRAND.logoUrl,
+  /** Background only on the academic year bar (tables stay white) */
+  yearBandBg: "#9e0539",
+  yearBandText: "#FFFFFF",
   /** Failing marks highlight (typically &lt; 50) */
   failGradeBg: "#FFFF00",
   failGradeText: "#000000",

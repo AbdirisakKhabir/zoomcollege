@@ -19,9 +19,6 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
 
     const department = await prisma.department.findUnique({
       where: { id },
-      include: {
-        faculty: { select: { id: true, name: true, code: true } },
-      },
     });
 
     if (!department) {
@@ -62,25 +59,12 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       data.code = String(body.code).trim().toUpperCase();
     if (body.description !== undefined)
       data.description = body.description || null;
-    if (body.facultyId !== undefined) {
-      const fid = Number(body.facultyId);
-      if (!Number.isInteger(fid)) {
-        return NextResponse.json(
-          { error: "Invalid facultyId" },
-          { status: 400 }
-        );
-      }
-      data.facultyId = fid;
-    }
-    if (body.tuitionFee !== undefined) data.tuitionFee = body.tuitionFee != null ? Number(body.tuitionFee) : null;
+    if (body.registrationFee !== undefined) data.registrationFee = body.registrationFee != null ? Number(body.registrationFee) : null;
     if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);
 
     const department = await prisma.department.update({
       where: { id },
       data,
-      include: {
-        faculty: { select: { id: true, name: true, code: true } },
-      },
     });
 
     return NextResponse.json(department);

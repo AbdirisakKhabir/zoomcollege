@@ -36,15 +36,11 @@ export default function CollectMonthlyFeePage() {
     <div>
       <PageBreadCrumb pageTitle="Collect monthly fee" />
       <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
-        <Link href="/finance" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
-          ← Finance home
-        </Link>
-        <span className="text-gray-300 dark:text-gray-600">·</span>
         <Link href="/finance/payments" className="text-gray-600 hover:text-brand-600 dark:text-gray-400">
           Payment history
         </Link>
       </div>
-      <div className="mx-auto max-w-3xl min-w-0">
+      <div className="min-w-0">
         <MonthlyFeeCollectionForm
           canRecord={canRecord}
           banks={banks}

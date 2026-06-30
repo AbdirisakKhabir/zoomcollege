@@ -4,7 +4,7 @@
 
 @theme {
   --font-*: initial;
-  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
 
   --breakpoint-*: initial;
   --breakpoint-2xsm: 375px;
@@ -197,7 +197,7 @@
 }
 
 @utility menu-item {
-  @apply relative flex items-center w-full gap-3 px-3 py-2 font-medium rounded-lg text-theme-sm;
+  @apply relative flex items-center w-full gap-2.5 px-3 py-2.5 font-medium rounded-lg text-[15px] leading-5;
 }
 
 @utility menu-item-active {
@@ -233,7 +233,7 @@
 }
 
 @utility menu-dropdown-item {
-  @apply relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-theme-sm font-medium;
+  @apply relative flex items-center gap-2 rounded-lg px-3 py-2 text-[14px] leading-5 font-medium;
 }
 
 @utility menu-dropdown-item-active {
@@ -797,20 +797,20 @@ span.flatpickr-weekday,
   cursor: grabbing; /* Changes the cursor to indicate dragging */
 }
 
-/* Transcript semester course tables: fixed columns align across separate tables */
-.transcript-semester-grades-table {
+/* Transcript year course tables: fixed columns align across separate tables */
+.transcript-year-grades-table {
   table-layout: fixed;
   width: 100%;
 }
-.transcript-semester-grades-table td,
-.transcript-semester-grades-table th {
+.transcript-year-grades-table td,
+.transcript-year-grades-table th {
   word-wrap: break-word;
   overflow-wrap: break-word;
   vertical-align: top;
 }
 /* Result rows only: white — no conditional fill for low marks */
-.transcript-semester-grades-table tbody td,
-.transcript-semester-grades-table tfoot td {
+.transcript-year-grades-table tbody td,
+.transcript-year-grades-table tfoot td {
   background-color: #fff;
 }
 
@@ -839,12 +839,12 @@ span.flatpickr-weekday,
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* Allow semester sections to split across pages so a full transcript can stay ~2 pages */
-  .transcript-semester-block {
+  /* Allow year sections to split across pages so a full transcript can stay ~2 pages */
+  .transcript-year-block {
     break-inside: auto;
     page-break-inside: auto;
   }
-  .transcript-semester-title-row {
+  .transcript-year-title-row {
     background-color: #e8e8e8 !important;
     color: #000000 !important;
     text-decoration: underline !important;
@@ -855,20 +855,20 @@ span.flatpickr-weekday,
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .transcript-semester-gpa {
+  .transcript-year-gpa {
     break-before: avoid;
     page-break-before: avoid;
     font-size: 10px !important;
     margin-top: 0.125rem !important;
   }
-  /* If a semester table spans pages, repeat header/footer rows */
-  .transcript-semester-block .transcript-table thead {
+  /* If a year table spans pages, repeat header/footer rows */
+  .transcript-year-block .transcript-table thead {
     display: table-header-group;
   }
-  .transcript-semester-block .transcript-table tfoot {
+  .transcript-year-block .transcript-table tfoot {
     display: table-footer-group;
   }
-  .transcript-course-grade-thead tr:not(.transcript-semester-title-row) th {
+  .transcript-course-grade-thead tr:not(.transcript-year-title-row) th {
     background-color: #a53851 !important;
     color: #ffffff !important;
     -webkit-print-color-adjust: exact;
@@ -889,19 +889,19 @@ span.flatpickr-weekday,
   .transcript-row td {
     padding: 2px 4px !important;
   }
-  /* Semester grade tables: same column widths across all semesters (parallel vertical lines) */
-  .transcript-semester-grades-table {
+  /* Year grade tables: same column widths across all years (parallel vertical lines) */
+  .transcript-year-grades-table {
     table-layout: fixed !important;
     width: 100% !important;
   }
-  .transcript-semester-grades-table td,
-  .transcript-semester-grades-table th {
+  .transcript-year-grades-table td,
+  .transcript-year-grades-table th {
     word-wrap: break-word !important;
     overflow-wrap: break-word !important;
     vertical-align: top !important;
   }
-  .transcript-semester-grades-table tbody td,
-  .transcript-semester-grades-table tfoot td {
+  .transcript-year-grades-table tbody td,
+  .transcript-year-grades-table tfoot td {
     background-color: #ffffff !important;
   }
   /* Page 1: no sheet margin; page 2+: top margin only (rest 0) */

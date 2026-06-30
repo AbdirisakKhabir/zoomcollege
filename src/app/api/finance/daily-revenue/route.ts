@@ -20,15 +20,31 @@ export async function GET(req: NextRequest) {
     };
     const bankFilter = bankId ? { bankId: Number(bankId) } : {};
 
+    const paymentSelect = {
+      amount: true,
+      paidAt: true,
+      student: {
+        select: {
+          class: {
+            select: {
+              id: true,
+              name: true,
+              department: { select: { id: true, name: true, code: true } },
+            },
+          },
+        },
+      },
+    } as const;
+
     const [tuitionRows, monthlyRows] = await Promise.all([
       prisma.tuitionPayment.findMany({
         where: { paidAt: dateFilter, ...bankFilter },
-        select: { amount: true, paidAt: true },
+        select: paymentSelect,
         orderBy: { paidAt: "desc" },
       }),
       prisma.studentMonthlyPayment.findMany({
         where: { paidAt: dateFilter, ...bankFilter },
-        select: { amount: true, paidAt: true },
+        select: paymentSelect,
         orderBy: { paidAt: "desc" },
       }),
     ]);
@@ -38,16 +54,60 @@ export async function GET(req: NextRequest) {
     );
 
     const byDate: Record<string, { total: number; count: number }> = {};
+    const byClass = new Map<
+      number,
+      {
+        classId: number;
+        name: string;
+        department: { id: number; name: string; code: string };
+        total: number;
+        count: number;
+      }
+    >();
+    const unassigned = { total: 0, count: 0 };
+
     for (const p of payments) {
       const d = p.paidAt.toISOString().slice(0, 10);
       if (!byDate[d]) byDate[d] = { total: 0, count: 0 };
       byDate[d].total += p.amount;
       byDate[d].count += 1;
+
+      const cls = p.student.class;
+      if (!cls) {
+        unassigned.total += p.amount;
+        unassigned.count += 1;
+        continue;
+      }
+
+      const existing = byClass.get(cls.id);
+      if (existing) {
+        existing.total += p.amount;
+        existing.count += 1;
+      } else {
+        byClass.set(cls.id, {
+          classId: cls.id,
+          name: cls.name,
+          department: cls.department,
+          total: p.amount,
+          count: 1,
+        });
+      }
     }
 
     const dailySummary = Object.entries(byDate)
       .map(([date, data]) => ({ date, ...data }))
       .sort((a, b) => b.date.localeCompare(a.date));
+
+    const classSummary = [...byClass.values()].sort((a, b) => b.total - a.total);
+    if (unassigned.count > 0) {
+      classSummary.push({
+        classId: 0,
+        name: "Unassigned",
+        department: { id: 0, name: "—", code: "—" },
+        total: unassigned.total,
+        count: unassigned.count,
+      });
+    }
 
     const totalRevenue = tuitionRows.reduce((sum, p) => sum + p.amount, 0)
       + monthlyRows.reduce((sum, p) => sum + p.amount, 0);
@@ -58,6 +118,7 @@ export async function GET(req: NextRequest) {
       totalRevenue,
       totalCount: payments.length,
       dailySummary,
+      classSummary,
       generatedAt: new Date().toISOString(),
     });
   } catch (e) {

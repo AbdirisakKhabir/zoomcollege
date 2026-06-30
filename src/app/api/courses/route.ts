@@ -1,32 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { getAuthUser } from "@/lib/auth";
+import {
+  applyDepartmentScope,
+  assertDepartmentAccess,
+  departmentScopeForbiddenResponse,
+  getDepartmentScope,
+  loadAuthContext,
+  parseDepartmentIdParam,
+} from "@/lib/department-access";
 import { prisma } from "@/lib/prisma";
 import { parsePaginationParams } from "@/lib/pagination";
-import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const { paginate, page, pageSize, skip } = parsePaginationParams(searchParams);
     const q = searchParams.get("q")?.trim();
-    const departmentId = searchParams.get("departmentId");
     const where: Prisma.CourseWhereInput = {};
+    const scope = getDepartmentScope(
+      ctx,
+      parseDepartmentIdParam(searchParams.get("departmentId"))
+    );
+    if (scope.kind === "none") return departmentScopeForbiddenResponse();
+    applyDepartmentScope(where, scope);
+
     if (q) {
       where.OR = [
         { name: { contains: q } },
         { code: { contains: q } },
         { description: { contains: q } },
       ];
-    }
-    if (departmentId && departmentId !== "all") {
-      const id = Number(departmentId);
-      if (Number.isInteger(id) && id > 0) where.departmentId = id;
     }
 
     const include = {
@@ -97,8 +105,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -114,6 +122,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const deptDenied = assertDepartmentAccess(ctx, parsedDeptId);
+    if (deptDenied) return deptDenied;
+
     const course = await prisma.course.create({
       data: {
         name: String(name).trim(),
@@ -126,8 +137,6 @@ export async function POST(req: NextRequest) {
         department: { select: { id: true, name: true, code: true } },
       },
     });
-
-    await seedDefaultAssessmentsIfEmpty(course.id);
 
     return NextResponse.json(course);
   } catch (e: unknown) {

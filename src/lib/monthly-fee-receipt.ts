@@ -1,0 +1,109 @@
+import { TRANSCRIPT_BRAND } from "@/lib/transcript-brand";
+
+export type MonthlyFeeReceipt = {
+  batchId: string;
+  paymentDate: string;
+  year: number;
+  months: number[];
+  depositAmount?: number;
+  discountAmount?: number;
+  paymentMethod?: string;
+  description?: string | null;
+  amountPerMonth: number;
+  totalAmount: number;
+  student: { studentId: string; firstName: string; lastName: string };
+  bank: { code: string; name: string };
+  newBalance: number;
+};
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function paymentMethodLabel(method: string | undefined): string {
+  switch (method) {
+    case "electronic":
+      return "Electronic";
+    case "cash_on_hand":
+      return "Cash on Hand";
+    case "bank_receipt":
+      return "Bank Receipt";
+    default:
+      return "—";
+  }
+}
+
+export function openMonthlyFeeReceipt(data: MonthlyFeeReceipt) {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  const monthsLabel = data.months
+    .map((m) => new Date(2000, m - 1, 1).toLocaleString("en-US", { month: "long" }))
+    .join(", ");
+  const paid = new Date(data.paymentDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const uni = escHtml(TRANSCRIPT_BRAND.universityName);
+  const contact = escHtml(TRANSCRIPT_BRAND.contactPhone);
+  const st = data.student;
+  const bk = data.bank;
+  const deposit = data.depositAmount ?? data.totalAmount;
+  const discount = data.discountAmount ?? 0;
+  const descriptionRow = data.description
+    ? `<tr><th>Description</th><td>${escHtml(data.description)}</td></tr>`
+    : "";
+  w.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"/><title>Fee receipt — ${escHtml(st.studentId)}</title>
+<style>
+  @page { margin: 16mm; }
+  body { font-family: Outfit, system-ui, -apple-system, Segoe UI, sans-serif; color: #111; line-height: 1.45; }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  .head { text-align: center; padding-bottom: 16px; border-bottom: 3px solid #465fff; margin-bottom: 20px; }
+  .head h1 { font-size: 1.15rem; margin: 0 0 4px; letter-spacing: 0.02em; color: #1e1b4b; }
+  .head p { margin: 0; font-size: 0.8rem; color: #64748b; }
+  .head .contact { margin: 10px 0 0; font-size: 0.85rem; font-weight: 600; color: #334155; }
+  .badge { display: inline-block; background: #eef2ff; color: #3730a3; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; padding: 4px 10px; border-radius: 999px; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 16px 0; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .total { font-size: 1.25rem; font-weight: 800; color: #1e293b; text-align: right; padding-top: 12px; border-top: 2px solid #cbd5e1; }
+  .meta { font-size: 0.85rem; color: #475569; margin-top: 20px; padding: 14px 16px; background: #f8fafc; border-radius: 12px; }
+  .meta div { margin: 4px 0; }
+  .foot { margin-top: 28px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 0.75rem; color: #94a3b8; text-align: center; }
+</style></head><body>
+<div class="wrap">
+  <div class="head">
+    <div class="badge">MONTHLY FEE RECEIPT</div>
+    <h1>${uni}</h1>
+    <p>Official payment acknowledgment</p>
+    <p class="contact">Contact: ${contact}</p>
+  </div>
+  <table>
+    <tbody>
+      <tr><th>Student</th><td>${escHtml(st.firstName)} ${escHtml(st.lastName)}</td></tr>
+      <tr><th>Student ID</th><td style="font-family: ui-monospace, monospace;">${escHtml(st.studentId)}</td></tr>
+      <tr><th>Period</th><td>${escHtml(monthsLabel)} ${data.year}</td></tr>
+      <tr><th>Payment method</th><td>${escHtml(paymentMethodLabel(data.paymentMethod))}</td></tr>
+      ${discount > 0 ? `<tr><th>Discount</th><td>$${discount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>` : ""}
+      <tr><th>Amount paid</th><td>$${deposit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
+      <tr><th>Bank</th><td>${escHtml(bk.code)} — ${escHtml(bk.name)}</td></tr>
+      <tr><th>Date recorded</th><td>${escHtml(paid)}</td></tr>
+      ${descriptionRow}
+    </tbody>
+  </table>
+  <div class="total">Total received: $${data.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+  <div class="meta">
+    <div><strong>New balance due:</strong> $${data.newBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+    <div><strong>Batch ID:</strong> <span style="font-family: ui-monospace, monospace; font-size: 0.8rem;">${escHtml(data.batchId)}</span></div>
+  </div>
+  <div class="foot">Questions? ${contact} · This document was generated by the university management system. Keep for your records.</div>
+</div>
+<script>window.onload = function() { window.print(); };</script>
+</body></html>`);
+  w.document.close();
+}

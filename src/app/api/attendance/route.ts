@@ -11,11 +11,13 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const classId = searchParams.get("classId");
+    const courseId = searchParams.get("courseId");
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
 
     const where: Record<string, unknown> = {};
     if (classId) where.classId = Number(classId);
+    if (courseId) where.courseId = Number(courseId);
     if (dateFrom || dateTo) {
       const dateFilter: Record<string, Date> = {};
       if (dateFrom) dateFilter.gte = new Date(dateFrom);
@@ -33,6 +35,7 @@ export async function GET(req: NextRequest) {
             department: { select: { id: true, name: true, code: true } },
           },
         },
+        course: { select: { id: true, code: true, name: true } },
         takenBy: { select: { id: true, name: true, email: true } },
         _count: { select: { records: true } },
         records: {
@@ -51,6 +54,8 @@ export async function GET(req: NextRequest) {
         return {
           id: s.id,
           classId: s.classId,
+          courseId: s.courseId,
+          course: s.course,
           class: s.class,
           date: s.date,
           shift: s.shift,
@@ -83,12 +88,43 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { classId, date, shift, note, records } = body;
+    const { classId, courseId, date, shift, note, records } = body;
 
     const parsedClassId = Number(classId);
-    if (!Number.isInteger(parsedClassId) || !date || !shift) {
+    const parsedCourseId = Number(courseId);
+    if (
+      !Number.isInteger(parsedClassId) ||
+      !Number.isInteger(parsedCourseId) ||
+      !date ||
+      !shift
+    ) {
       return NextResponse.json(
-        { error: "classId, date, and shift are required" },
+        { error: "classId, courseId, date, and shift are required" },
+        { status: 400 }
+      );
+    }
+
+    const cls = await prisma.class.findUnique({
+      where: { id: parsedClassId },
+      select: { id: true, departmentId: true },
+    });
+    if (!cls) {
+      return NextResponse.json({ error: "Class not found" }, { status: 404 });
+    }
+
+    const course = await prisma.course.findUnique({
+      where: { id: parsedCourseId },
+      select: { id: true, departmentId: true, isActive: true },
+    });
+    if (!course || !course.isActive) {
+      return NextResponse.json(
+        { error: "Course not found or inactive" },
+        { status: 404 }
+      );
+    }
+    if (course.departmentId !== cls.departmentId) {
+      return NextResponse.json(
+        { error: "Course must belong to the same department as the class." },
         { status: 400 }
       );
     }
@@ -108,11 +144,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check for existing session
     const existing = await prisma.attendanceSession.findUnique({
       where: {
-        classId_date_shift: {
+        classId_courseId_date_shift: {
           classId: parsedClassId,
+          courseId: parsedCourseId,
           date: new Date(date),
           shift,
         },
@@ -120,7 +156,9 @@ export async function POST(req: NextRequest) {
     });
     if (existing) {
       return NextResponse.json(
-        { error: `Attendance for this class on ${date} (${shift} shift) has already been taken` },
+        {
+          error: `Attendance for this course on ${date} (${shift} shift) has already been taken`,
+        },
         { status: 400 }
       );
     }
@@ -128,6 +166,7 @@ export async function POST(req: NextRequest) {
     const session = await prisma.attendanceSession.create({
       data: {
         classId: parsedClassId,
+        courseId: parsedCourseId,
         date: new Date(date),
         shift,
         takenById: auth.userId,
@@ -150,6 +189,7 @@ export async function POST(req: NextRequest) {
             department: { select: { id: true, name: true, code: true } },
           },
         },
+        course: { select: { id: true, code: true, name: true } },
         takenBy: { select: { id: true, name: true, email: true } },
         records: {
           include: {
@@ -176,7 +216,7 @@ export async function POST(req: NextRequest) {
       (e as { code: string }).code === "P2002"
     ) {
       return NextResponse.json(
-        { error: "Attendance for this class/date/shift already exists" },
+        { error: "Attendance for this class/course/date/shift already exists" },
         { status: 400 }
       );
     }

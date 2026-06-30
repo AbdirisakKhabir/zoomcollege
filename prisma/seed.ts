@@ -13,10 +13,6 @@ const DEFAULT_PERMISSIONS = [
   { name: "roles.delete", description: "Delete roles", module: "roles" },
   { name: "permissions.view", description: "View permissions", module: "permissions" },
   { name: "dashboard.view", description: "View dashboard", module: "dashboard" },
-  { name: "faculties.view", description: "View faculties", module: "faculties" },
-  { name: "faculties.create", description: "Create faculties", module: "faculties" },
-  { name: "faculties.edit", description: "Edit faculties", module: "faculties" },
-  { name: "faculties.delete", description: "Delete faculties", module: "faculties" },
   { name: "departments.view", description: "View departments", module: "departments" },
   { name: "departments.create", description: "Create departments", module: "departments" },
   { name: "departments.edit", description: "Edit departments", module: "departments" },
@@ -44,17 +40,13 @@ const DEFAULT_PERMISSIONS = [
   { name: "reports.view", description: "View reports", module: "reports" },
   { name: "finance.view", description: "View finance", module: "finance" },
   { name: "finance.create", description: "Record tuition payments", module: "finance" },
-  { name: "semesters.view", description: "View semesters", module: "semesters" },
-  { name: "semesters.create", description: "Create semesters", module: "semesters" },
-  { name: "semesters.edit", description: "Edit semesters", module: "semesters" },
-  { name: "semesters.delete", description: "Delete semesters", module: "semesters" },
   { name: "lecturers.view", description: "View lecturers", module: "lecturers" },
   { name: "lecturers.create", description: "Create lecturers", module: "lecturers" },
   { name: "lecturers.edit", description: "Edit lecturers", module: "lecturers" },
   { name: "lecturers.delete", description: "Delete lecturers", module: "lecturers" },
-  { name: "schedule.view", description: "View semester schedule", module: "schedule" },
-  { name: "schedule.create", description: "Create semester schedule", module: "schedule" },
-  { name: "schedule.edit", description: "Edit semester schedule", module: "schedule" },
+  { name: "schedule.view", description: "View class schedule", module: "schedule" },
+  { name: "schedule.create", description: "Create class schedule", module: "schedule" },
+  { name: "schedule.edit", description: "Edit class schedule", module: "schedule" },
   { name: "schedule.delete", description: "Delete schedule slots", module: "schedule" },
   { name: "hr.view", description: "View HR (employees, positions)", module: "hr" },
   { name: "hr.create", description: "Create employees and positions", module: "hr" },
@@ -140,31 +132,17 @@ async function main() {
     });
   }
 
-  // Create default semesters (Fall, Spring, Summer)
-  const defaultSemesters = [
-    { name: "Spring", sortOrder: 1 },
-    { name: "Summer", sortOrder: 2 },
-    { name: "Fall", sortOrder: 3 },
-  ];
-  for (const s of defaultSemesters) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (prisma as any).semester.upsert({
-      where: { name: s.name },
-      create: { name: s.name, sortOrder: s.sortOrder },
-      update: { sortOrder: s.sortOrder },
-    });
-  }
-
   const hashed = await bcrypt.hash("admin123", 10);
   await prisma.user.upsert({
-    where: { email: "admin@abaarsotech.edu" },
+    where: { email: "admin@zoomcollege.edu" },
     create: {
-      email: "admin@abaarsotech.edu",
+      email: "admin@zoomcollege.edu",
       password: hashed,
       name: "System Admin",
       roleId: adminRole.id,
+      isSuperAdmin: true,
     },
-    update: {},
+    update: { isSuperAdmin: true },
   });
 
   // Finance role: view/create expenses, finance, banks
@@ -206,18 +184,18 @@ async function main() {
     });
   }
 
-  // Dean role: academic oversight - faculties, departments, courses, classes, lecturers, schedule, reports
+  // Dean role: academic oversight - departments, courses, classes, lecturers, schedule, reports
   const deanPermNames = [
-    "dashboard.view", "faculties.view", "faculties.edit", "departments.view", "departments.edit",
+    "dashboard.view", "departments.view", "departments.edit",
     "courses.view", "courses.edit", "classes.view", "classes.edit",
     "lecturers.view", "lecturers.edit", "schedule.view", "schedule.edit",
     "admission.view", "attendance.view", "examinations.view",
-    "semesters.view", "reports.view",
+    "reports.view",
   ];
   const deanPerms = allPermissions.filter((p) => deanPermNames.includes(p.name));
   const deanRole = await prisma.role.upsert({
     where: { name: "Dean" },
-    create: { name: "Dean", description: "Faculty Dean - academic oversight, manage departments and courses" },
+    create: { name: "Dean", description: "Dean - academic oversight, manage departments and courses" },
     update: {},
   });
   for (const perm of deanPerms) {
@@ -286,13 +264,7 @@ async function main() {
     });
   }
 
-  // Create default faculty and departments for student import (ACC, ICT, HRM, LAB, SWE)
-  const defaultFaculty = await prisma.faculty.upsert({
-    where: { code: "MAIN" },
-    create: { name: "Main Faculty", code: "MAIN", description: "Default faculty" },
-    update: {},
-  });
-
+  // Create default departments for student import (ACC, ICT, HRM, LAB, SWE)
   const defaultDepartments = [
     { code: "ACC", name: "Accounting" },
     { code: "ICT", name: "Information and Communication Technology" },
@@ -303,12 +275,12 @@ async function main() {
   for (const d of defaultDepartments) {
     await prisma.department.upsert({
       where: { code: d.code },
-      create: { ...d, facultyId: defaultFaculty.id, tuitionFee: 0 },
+      create: { ...d, registrationFee: 0 },
       update: { name: d.name },
     });
   }
 
-  console.log("Seed completed. Admin: admin@abaarsotech.edu / admin123");
+  console.log("Seed completed. Admin: admin@zoomcollege.edu / admin123");
   console.log("Roles: Admin, Finance, President, Dean, Lecturer, HR, Admission created/updated.");
 }
 

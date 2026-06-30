@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isValidSemester } from "@/lib/semesters";
+import { computeRegistrationFeeAmount } from "@/lib/monthly-fee";
 
 export async function GET(req: NextRequest) {
   try {
@@ -12,7 +12,6 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const studentId = searchParams.get("studentId"); // studentId string e.g. STD-2026-0001
-    const semester = searchParams.get("semester");
     const year = searchParams.get("year");
     const pageParam = searchParams.get("page");
     const pageSizeParam = searchParams.get("pageSize");
@@ -20,11 +19,10 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, Number(pageParam || 1));
     const pageSize = Math.min(100, Math.max(1, Number(pageSizeParam || 10)));
 
-    const where: { student?: { studentId?: string }; semester?: string; year?: number } = {};
+    const where: { student?: { studentId?: string }; year?: number } = {};
     if (studentId) {
       where.student = { studentId: String(studentId) };
     }
-    if (semester) where.semester = semester;
     if (year) where.year = Number(year);
 
     const include = {
@@ -35,14 +33,14 @@ export async function GET(req: NextRequest) {
           firstName: true,
           lastName: true,
           department: { select: { id: true, name: true, code: true } },
-          class: { select: { id: true, name: true, semester: true, year: true, department: { select: { code: true } } } },
+          class: { select: { id: true, name: true, department: { select: { code: true } } } },
         },
       },
       bank: { select: { id: true, name: true, code: true } },
       recordedBy: { select: { id: true, name: true, email: true } },
     } as const;
 
-    const orderBy = [{ year: "desc" as const }, { semester: "asc" as const }, { paidAt: "desc" as const }];
+    const orderBy = [{ paidAt: "desc" as const }];
 
     if (paginate) {
       const skip = (page - 1) * pageSize;
@@ -67,7 +65,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(payments);
   } catch (e) {
-    console.error("Tuition payments list error:", e);
+    console.error("Registration fee payments list error:", e);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
@@ -83,7 +81,6 @@ export async function POST(req: NextRequest) {
     const {
       studentId: studentIdStr,
       amount,
-      semester,
       year,
       note,
       bankId,
@@ -93,11 +90,8 @@ export async function POST(req: NextRequest) {
       paymentDate,
     } = body;
 
-    if (!studentIdStr || !semester || !year) {
-      return NextResponse.json(
-        { error: "Student ID, semester, and year are required" },
-        { status: 400 }
-      );
+    if (!studentIdStr) {
+      return NextResponse.json({ error: "Student ID is required" }, { status: 400 });
     }
 
     if (!bankId) {
@@ -114,23 +108,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid or inactive bank" }, { status: 400 });
     }
 
-    if (!(await isValidSemester(semester))) {
-      return NextResponse.json(
-        { error: "Invalid semester. Use a semester from the Semesters settings." },
-        { status: 400 }
-      );
-    }
-
     const student = await prisma.student.findUnique({
       where: { studentId: String(studentIdStr).trim() },
-      include: { department: { select: { tuitionFee: true } } },
+      include: { department: { select: { registrationFee: true } } },
     });
 
     if (!student) {
       return NextResponse.json({ error: "Student not found" }, { status: 404 });
     }
 
-    const amt = amount != null ? Number(amount) : (student.department.tuitionFee ?? 0);
+    const expectedFee = computeRegistrationFeeAmount(
+      student.department.registrationFee,
+      student.paymentStatus
+    );
+    const amt =
+      amount != null
+        ? Number(amount)
+        : expectedFee > 0
+          ? expectedFee
+          : (student.department.registrationFee ?? 0);
     if (amt <= 0) {
       return NextResponse.json(
         { error: "Amount must be greater than 0" },
@@ -139,29 +135,17 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await prisma.tuitionPayment.findUnique({
-      where: {
-        studentId_semester_year: {
-          studentId: student.id,
-          semester: String(semester),
-          year: Number(year),
-        },
-      },
+      where: { studentId: student.id },
     });
 
     if (existing) {
       return NextResponse.json(
-        { error: `Student has already paid for ${semester} ${year}` },
+        { error: "Registration fee has already been collected for this student" },
         { status: 400 }
       );
     }
 
     const method = String(paymentMethod || "bank_receipt");
-    if (method === "bank_receipt" && !String(receiptNumber || "").trim()) {
-      return NextResponse.json(
-        { error: "Receipt number is required for bank deposit" },
-        { status: 400 }
-      );
-    }
     if (method === "electronic" && !String(transactionId || "").trim()) {
       return NextResponse.json(
         { error: "Transaction ID is required for electronic payment" },
@@ -176,6 +160,7 @@ export async function POST(req: NextRequest) {
           ? "cash_on_hand"
           : "bank_receipt";
     const paymentDateVal = paymentDate ? new Date(paymentDate) : new Date();
+    const recordYear = year ? Number(year) : new Date().getFullYear();
 
     const payment = await prisma.$transaction(async (tx) => {
       const p = await tx.tuitionPayment.create({
@@ -183,8 +168,7 @@ export async function POST(req: NextRequest) {
           studentId: student.id,
           bankId: bank.id,
           amount: amt,
-          semester: String(semester),
-          year: Number(year),
+          year: recordYear,
           paymentMethod: paymentMethodVal,
           receiptNumber:
             paymentMethodVal === "bank_receipt" && receiptNumber
@@ -213,7 +197,7 @@ export async function POST(req: NextRequest) {
           type: "deposit",
           amount: amt,
           bankId: bank.id,
-          description: `Tuition: ${student.firstName} ${student.lastName} (${student.studentId}) - ${String(semester)} ${year}`,
+          description: `Registration: ${student.firstName} ${student.lastName} (${student.studentId})`,
           studentId: student.id,
           tuitionPaymentId: p.id,
           createdById: auth.userId,
@@ -243,11 +227,11 @@ export async function POST(req: NextRequest) {
       (e as { code: string }).code === "P2002"
     ) {
       return NextResponse.json(
-        { error: "Payment already exists for this student/semester/year" },
+        { error: "Registration fee has already been collected for this student" },
         { status: 400 }
       );
     }
-    console.error("Create tuition payment error:", e);
+    console.error("Create registration fee payment error:", e);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

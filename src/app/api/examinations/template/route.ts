@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
-import { computeAttendanceMarks } from "@/lib/attendance";
-import { getSemesterDateRange } from "@/lib/semester-dates";
-import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
+import {
+  loadAssessmentsForClassCourse,
+  seedDefaultAssessmentsIfEmpty,
+} from "@/lib/course-assessment-scope";
+import { fetchClassCourseAttendanceSummary } from "@/lib/exam-attendance";
 
 export async function GET(req: NextRequest) {
   try {
@@ -42,12 +44,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    await seedDefaultAssessmentsIfEmpty(course.id);
+    await seedDefaultAssessmentsIfEmpty(course.id, Number(classId));
 
-    const assessments = await prisma.courseAssessment.findMany({
-      where: { courseId: course.id },
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    });
+    const assessments = await loadAssessmentsForClassCourse(
+      course.id,
+      Number(classId)
+    );
 
     const students = await prisma.student.findMany({
       where: { classId: Number(classId), status: "Admitted" },
@@ -55,30 +57,13 @@ export async function GET(req: NextRequest) {
       orderBy: [{ studentId: "asc" }],
     });
 
-    const { start, end } = getSemesterDateRange(cls.semester, cls.year);
-    const sessions = await prisma.attendanceSession.findMany({
-      where: { classId: Number(classId), date: { gte: start, lte: end } },
-      select: { id: true },
-    });
-    const sessionIds = sessions.map((s) => s.id);
-    const totalSessions = sessionIds.length;
-    const attendanceRecords =
-      totalSessions > 0
-        ? await prisma.attendanceRecord.findMany({
-            where: {
-              sessionId: { in: sessionIds },
-              studentId: { in: students.map((s) => s.id) },
-            },
-            select: { studentId: true, status: true },
-          })
-        : [];
-    const byStudent = new Map<number, number>();
-    for (const s of students) byStudent.set(s.id, 0);
-    for (const r of attendanceRecords) {
-      if (r.status === "Present" || r.status === "Excused") {
-        byStudent.set(r.studentId, (byStudent.get(r.studentId) ?? 0) + 1);
-      }
-    }
+    const studentIds = students.map((s) => s.id);
+    const { totalSessions, byStudent: attendanceByStudent } =
+      await fetchClassCourseAttendanceSummary(
+        Number(classId),
+        course.id,
+        studentIds
+      );
 
     const assessmentHeaders = assessments.map(
       (a) => `${a.name} (${a.weightPercent}%)`
@@ -96,8 +81,8 @@ export async function GET(req: NextRequest) {
     ];
 
     const rows = students.map((s, idx) => {
-      const presentPlusExcused = byStudent.get(s.id) ?? 0;
-      const attendanceMarks = computeAttendanceMarks(presentPlusExcused, totalSessions);
+      const attendanceMarks =
+        attendanceByStudent.get(s.id)?.attendanceMarks ?? 0;
       const blankAssess = assessments.map(() => "");
       return [
         idx + 1,
@@ -130,11 +115,11 @@ export async function GET(req: NextRequest) {
     XLSX.utils.book_append_sheet(
       wb,
       ws,
-      `Exam ${course.code} ${cls.semester} ${cls.year}`
+      `Exam ${course.code}`
     );
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    const filename = `Exam_Template_${course.code}_${cls.name}_${cls.semester}_${cls.year}.xlsx`;
+    const filename = `Exam_Template_${course.code}_${cls.name}.xlsx`;
 
     return new NextResponse(buf, {
       status: 200,

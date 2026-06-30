@@ -1,4 +1,4 @@
-// Grade scale for Abaarso Tech University
+// Grade scale for Zoom International College
 // Mark breakdown (default max marks):
 //   Mid Exam:      /20
 //   Final Exam:    /40
@@ -7,8 +7,6 @@
 //   Assignment:    /10
 //   Presentation:  /10
 //   Total:         /100
-
-import { semesterOrdinal } from "./semester-sort";
 
 export interface GradeInfo {
   grade: string;
@@ -61,8 +59,7 @@ export function getGradePointsFromGrade(gradeStr: string): number | null {
   return entry ? entry.points : null;
 }
 
-export interface SemesterGPA {
-  semester: string;
+export interface YearGPA {
   year: number;
   gpa: number;
   totalCredits: number;
@@ -73,58 +70,49 @@ export interface SemesterGPA {
 export interface GPASummary {
   cumulativeGPA: number;
   totalCredits: number;
-  semesters: SemesterGPA[];
+  years: YearGPA[];
 }
 
-/** Optional map of semester name -> sort order (from Semester table). If not provided, uses default. */
 export function calculateGPA(
   records: {
-    semester: string;
     year: number;
     gradePoints: number | null;
     creditHours: number;
-  }[],
-  semOrderMap?: Record<string, number>
+  }[]
 ): GPASummary {
-  // Group by semester+year
-  const semMap = new Map<string, { semester: string; year: number; items: { gradePoints: number; creditHours: number }[] }>();
+  const yearMap = new Map<number, { items: { gradePoints: number; creditHours: number }[] }>();
 
   for (const r of records) {
-    const key = `${r.semester}-${r.year}`;
-    if (!semMap.has(key)) {
-      semMap.set(key, { semester: r.semester, year: r.year, items: [] });
+    if (!yearMap.has(r.year)) {
+      yearMap.set(r.year, { items: [] });
     }
-    semMap.get(key)!.items.push({
+    yearMap.get(r.year)!.items.push({
       gradePoints: r.gradePoints || 0,
       creditHours: r.creditHours,
     });
   }
 
-  const semesters: SemesterGPA[] = [];
+  const years: YearGPA[] = [];
   let cumulativeTotalCredits = 0;
   let cumulativeTotalGradePoints = 0;
 
-  // Sort semesters by year then semester (DB order map + "Semester N" / Fall / Spring, etc.)
-  const sorted = [...semMap.values()].sort((a, b) => {
-    if (a.year !== b.year) return a.year - b.year;
-    return semesterOrdinal(a.semester, semOrderMap) - semesterOrdinal(b.semester, semOrderMap);
-  });
+  const sortedYears = [...yearMap.keys()].sort((a, b) => a - b);
 
-  for (const sem of sorted) {
+  for (const year of sortedYears) {
+    const items = yearMap.get(year)!.items;
     let totalCredits = 0;
     let totalGradePoints = 0;
-    for (const item of sem.items) {
+    for (const item of items) {
       totalCredits += item.creditHours;
       totalGradePoints += item.gradePoints * item.creditHours;
     }
     const gpa = totalCredits > 0 ? totalGradePoints / totalCredits : 0;
-    semesters.push({
-      semester: sem.semester,
-      year: sem.year,
+    years.push({
+      year,
       gpa: Math.round(gpa * 100) / 100,
       totalCredits,
       totalGradePoints: Math.round(totalGradePoints * 100) / 100,
-      courses: sem.items.length,
+      courses: items.length,
     });
     cumulativeTotalCredits += totalCredits;
     cumulativeTotalGradePoints += totalGradePoints;
@@ -138,6 +126,11 @@ export function calculateGPA(
   return {
     cumulativeGPA,
     totalCredits: cumulativeTotalCredits,
-    semesters,
+    years,
   };
+}
+
+/** Sort exam records chronologically by year. */
+export function sortExamRecordsByYear<T extends { year: number }>(records: T[]): T[] {
+  return [...records].sort((a, b) => a.year - b.year);
 }

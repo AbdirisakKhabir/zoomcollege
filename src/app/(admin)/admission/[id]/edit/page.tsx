@@ -13,8 +13,7 @@ type AcademicYearInfo = { id: number; name: string; startYear: number; endYear: 
 type ClassInfo = {
   id: number;
   name: string;
-  semester: string;
-  year: number;
+    year: number;
   course: { code: string };
   departmentId?: number;
 };
@@ -93,12 +92,10 @@ export default function EditStudentPage() {
         if (classRes.ok) {
           const data = await classRes.json();
           setClasses(
-            data.map((c: { id: number; name: string; semester: string; year: number; department?: { code?: string; id?: number } }) => ({
+            data.map((c: { id: number; name: string; year: number; department?: { code?: string; id?: number } }) => ({
               id: c.id,
               name: c.name,
-              semester: c.semester,
-              year: c.year,
-              department: { code: c.department?.code ?? "" },
+                            department: { code: c.department?.code ?? "" },
               departmentId: c.department?.id ?? 0,
             }))
           );
@@ -151,7 +148,6 @@ export default function EditStudentPage() {
         gender: student.gender ?? "",
         address: student.address ?? "",
         departmentId: String(student.departmentId),
-        admissionAcademicYearId: student.admissionAcademicYearId ? String(student.admissionAcademicYearId) : "",
         classId: student.classId ? String(student.classId) : "",
         program: student.program ?? "",
         status: student.status,

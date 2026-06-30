@@ -18,7 +18,6 @@ const MODULE_COLORS: Record<string, "primary" | "success" | "warning" | "info" |
   roles: "success",
   permissions: "warning",
   dashboard: "info",
-  faculties: "error",
   departments: "primary",
   courses: "warning",
   classes: "success",

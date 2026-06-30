@@ -5,21 +5,23 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
 import { useAuth } from "../context/AuthContext";
+import { BRAND } from "@/lib/brand";
 import {
-  BoxCubeIcon,
-  CalenderIcon,
-  ChevronDownIcon,
-  DollarLineIcon,
-  GridIcon,
-  HorizontaLDots,
-  ListIcon,
-  LockIcon,
-  PageIcon,
-  PieChartIcon,
-  TableIcon,
-  TimeIcon,
-  UserCircleIcon,
-} from "../icons/index";
+  BookOpen,
+  Briefcase,
+  CalendarDays,
+  ChevronDown,
+  ClipboardList,
+  DollarSign,
+  FileText,
+  FolderKanban,
+  GraduationCap,
+  LayoutDashboard,
+  MessageCircle,
+  MoreHorizontal,
+  Shield,
+  Users,
+} from "lucide-react";
 
 // --- Types ---
 
@@ -46,66 +48,60 @@ type MenuCategory = "academics" | "reports" | "hr" | "activities";
 // Academics (top): Dashboard, Faculties, Departments, Courses, Classes, Admission, Attendance, Examinations
 const academicsItems: NavItem[] = [
   {
-    icon: <GridIcon />,
+    icon: <LayoutDashboard strokeWidth={1.8} />,
     name: "Dashboard",
     path: "/",
     permission: "dashboard.view",
   },
   {
-    icon: <BoxCubeIcon />,
-    name: "Faculties",
-    path: "/faculties",
-    permission: "faculties.view",
+    icon: <MessageCircle strokeWidth={1.8} />,
+    name: "Messages",
+    path: "/messages",
   },
   {
-    icon: <TableIcon />,
+    icon: <FolderKanban strokeWidth={1.8} />,
     name: "Departments",
     path: "/departments",
     permission: "departments.view",
   },
   {
-    icon: <ListIcon />,
+    icon: <BookOpen strokeWidth={1.8} />,
     name: "Courses",
     path: "/courses",
     permission: "courses.view",
   },
   {
-    icon: <TimeIcon />,
-    name: "Semesters",
-    path: "/semesters",
-    permission: "semesters.view",
-  },
-  {
-    icon: <CalenderIcon />,
+    icon: <CalendarDays strokeWidth={1.8} />,
     name: "Classes",
     path: "/classes",
     permission: "classes.view",
   },
   {
-    icon: <UserCircleIcon />,
+    icon: <Users strokeWidth={1.8} />,
     name: "Lecturers",
     path: "/lecturers",
     permission: "lecturers.view",
   },
   {
-    icon: <PageIcon />,
+    icon: <FileText strokeWidth={1.8} />,
     name: "Admission",
     path: "/admission",
     permission: "admission.view",
     subItems: [
       { name: "Student List", path: "/admission", permission: "admission.view" },
+      { name: "Case Recording", path: "/admission/cases", permission: "admission.view" },
       { name: "Upgrade Students", path: "/admission/upgrade", permission: "admission.edit" },
       { name: "Transfer Student", path: "/admission/transfer", permission: "admission.edit" },
     ],
   },
   {
-    icon: <PieChartIcon />,
+    icon: <ClipboardList strokeWidth={1.8} />,
     name: "Attendance",
     path: "/attendance",
     permission: "attendance.view",
   },
   {
-    icon: <ListIcon />,
+    icon: <ClipboardList strokeWidth={1.8} />,
     name: "Examinations",
     path: "/examinations",
     permission: "examinations.view",
@@ -116,16 +112,16 @@ const academicsItems: NavItem[] = [
     ],
   },
   {
-    icon: <DollarLineIcon />,
+    icon: <DollarSign strokeWidth={1.8} />,
     name: "Finance",
-    path: "/finance",
+    path: "/finance/collect-monthly-fee",
     permission: "finance.view",
     subItems: [
-      { name: "Finance home", path: "/finance", permission: "finance.view" },
       { name: "Collect monthly fee", path: "/finance/collect-monthly-fee", permission: "finance.view" },
+      { name: "Collect registration fee", path: "/finance/tuition-payment", permission: "finance.view" },
       { name: "Monthly invoice", path: "/finance/monthly-invoice", permission: "finance.view" },
       { name: "Payments", path: "/finance/payments", permission: "finance.view" },
-      { name: "Banks", path: "/finance/banks", permission: "banks.view" },
+      { name: "Accounts", path: "/finance/banks", permission: "banks.view" },
       { name: "Expenses", path: "/finance/expenses", permission: "expenses.view" },
     ],
   },
@@ -133,7 +129,7 @@ const academicsItems: NavItem[] = [
 
 const hrItems: NavItem[] = [
   {
-    icon: <UserCircleIcon />,
+    icon: <Briefcase strokeWidth={1.8} />,
     name: "Human Resources",
     path: "/hr",
     permission: "hr.view",
@@ -148,49 +144,65 @@ const hrItems: NavItem[] = [
 
 const reportsItems: NavItem[] = [
   {
-    icon: <PageIcon />,
+    icon: <FileText strokeWidth={1.8} />,
     name: "Admission Report",
     path: "/reports/admission",
     permission: "reports.view",
   },
   {
-    icon: <PieChartIcon />,
+    icon: <ClipboardList strokeWidth={1.8} />,
     name: "Attendance Report",
     path: "/reports/attendance",
     permission: "reports.view",
   },
   {
-    icon: <ListIcon />,
+    icon: <GraduationCap strokeWidth={1.8} />,
     name: "Exam Report",
     path: "/reports/exam",
     permission: "reports.view",
   },
   {
-    icon: <UserCircleIcon />,
+    icon: <Users strokeWidth={1.8} />,
     name: "Lecturer Report",
     path: "/reports/lecturers",
     permission: "lecturers.view",
   },
   {
-    icon: <UserCircleIcon />,
+    icon: <Briefcase strokeWidth={1.8} />,
     name: "HR Report",
     path: "/reports/hr",
     permission: "hr.view",
   },
   {
-    icon: <DollarLineIcon />,
+    icon: <Users strokeWidth={1.8} />,
+    name: "Students Report",
+    path: "/reports/students-by-shift",
+    permission: "reports.view",
+  },
+  {
+    icon: <ClipboardList strokeWidth={1.8} />,
+    name: "Absent Attendance",
+    path: "/reports/absent-attendance",
+    permission: "reports.view",
+  },
+  {
+    icon: <DollarSign strokeWidth={1.8} />,
     name: "Finance Reports",
     path: "/reports/payment",
     permission: "reports.view",
     subItems: [
       { name: "Student Transactions", path: "/reports/student-transactions", permission: "reports.view" },
-      { name: "Class Revenue", path: "/reports/class-revenue", permission: "reports.view" },
+      { name: "Outstanding Balances", path: "/reports/outstanding-balances", permission: "reports.view" },
+      { name: "Registration Fee", path: "/reports/registration-fee", permission: "reports.view" },
+      { name: "Paid Students", path: "/reports/paid-students", permission: "reports.view" },
+      { name: "Scholarship Report", path: "/reports/scholarship", permission: "reports.view" },
+      { name: "Individual Student", path: "/reports/individual-student", permission: "reports.view" },
+      { name: "Revenue Summary", path: "/reports/revenue-summary", permission: "reports.view" },
       { name: "Unpaid Students", path: "/reports/unpaid-students", permission: "reports.view" },
-      { name: "Bank Balances", path: "/reports/bank-balances", permission: "banks.view" },
-      { name: "Bank Transactions", path: "/reports/bank-transactions", permission: "banks.view" },
+      { name: "Account Balances", path: "/reports/bank-balances", permission: "banks.view" },
+      { name: "Account Transactions", path: "/reports/bank-transactions", permission: "banks.view" },
       { name: "Transaction History", path: "/reports/transaction-history", permission: "finance.view" },
-      { name: "Treasury Summary", path: "/reports/treasury", permission: "finance.view" },
-      { name: "Daily Revenue", path: "/reports/daily-revenue", permission: "finance.view" },
+      { name: "Daily Report", path: "/reports/daily-revenue", permission: "finance.view" },
       { name: "Expense Report", path: "/reports/expenses", permission: "expenses.view" },
       { name: "Income Statement", path: "/reports/income-statement", permission: "finance.view" },
     ],
@@ -200,19 +212,19 @@ const reportsItems: NavItem[] = [
 // Activities (bottom): Users, Roles, Permissions
 const activitiesItems: NavItem[] = [
   {
-    icon: <UserCircleIcon />,
+    icon: <Users strokeWidth={1.8} />,
     name: "Users",
     path: "/users",
     permission: "users.view",
   },
   {
-    icon: <LockIcon />,
+    icon: <Shield strokeWidth={1.8} />,
     name: "Roles",
     path: "/roles",
     permission: "roles.view",
   },
   {
-    icon: <LockIcon />,
+    icon: <Shield strokeWidth={1.8} />,
     name: "Permissions",
     path: "/permissions",
     permission: "permissions.view",
@@ -319,7 +331,7 @@ const AppSidebar: React.FC = () => {
   }, [openSubmenu]);
 
   const renderMenuItems = (items: NavItem[], menuType: MenuCategory) => (
-    <ul className="flex flex-col gap-4">
+    <ul className="flex flex-col gap-1.5">
       {items.map((nav, index) => (
         <li key={nav.name}>
           {nav.subItems ? (
@@ -335,7 +347,7 @@ const AppSidebar: React.FC = () => {
                 }`}
               >
                 <span
-                  className={`${
+                  className={`menu-item-icon shrink-0 [&_svg]:size-5 ${
                     openSubmenu?.type === menuType && openSubmenu?.index === index
                       ? "menu-item-icon-active"
                       : "menu-item-icon-inactive"
@@ -345,9 +357,9 @@ const AppSidebar: React.FC = () => {
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
                   <>
-                    <span className="menu-item-text">{nav.name}</span>
-                    <ChevronDownIcon
-                      className={`ml-auto w-5 h-5 transition-transform duration-200 ${
+                    <span className="menu-item-text truncate">{nav.name}</span>
+                    <ChevronDown
+                      className={`ml-auto size-[18px] shrink-0 transition-transform duration-200 ${
                         openSubmenu?.type === menuType && openSubmenu?.index === index
                           ? "rotate-180 text-brand-500"
                           : ""
@@ -369,7 +381,7 @@ const AppSidebar: React.FC = () => {
                       : "0px",
                 }}
               >
-                <ul className="mt-2 space-y-1 ml-9">
+                <ul className="mt-1.5 space-y-1 ml-8 border-l border-gray-200 pl-2 dark:border-gray-700">
                   {nav.subItems.map((subItem) => (
                     <li key={subItem.name}>
                       <Link
@@ -396,14 +408,14 @@ const AppSidebar: React.FC = () => {
                 }`}
               >
                 <span
-                  className={`${
+                  className={`menu-item-icon shrink-0 [&_svg]:size-5 ${
                     isActive(nav.path) ? "menu-item-icon-active" : "menu-item-icon-inactive"
                   }`}
                 >
                   {nav.icon}
                 </span>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className="menu-item-text">{nav.name}</span>
+                  <span className="menu-item-text truncate">{nav.name}</span>
                 )}
               </Link>
             )
@@ -423,33 +435,33 @@ const AppSidebar: React.FC = () => {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`shrink-0 px-5 py-8 ${!isExpanded && !isHovered && !isMobileOpen ? "lg:justify-center" : ""} flex`}
+        className={`shrink-0 border-b border-gray-100 px-4 py-4 dark:border-gray-800 ${!isExpanded && !isHovered && !isMobileOpen ? "lg:justify-center" : ""} flex`}
       >
-        <Link href="/" className={`flex items-center gap-2 ${!isExpanded && !isHovered && !isMobileOpen ? "lg:justify-center" : ""}`}>
+        <Link href="/" className={`flex min-w-0 items-center gap-2.5 ${!isExpanded && !isHovered && !isMobileOpen ? "lg:justify-center" : ""}`}>
           <Image
-            src="/logo/era-pre-university.png"
-            alt="Era Pre-University"
-            width={48}
-            height={48}
+            src={BRAND.logoUrl}
+            alt={BRAND.logoAlt}
+            width={40}
+            height={40}
             priority
-            className="object-contain h-12 w-12 shrink-0"
+            className="object-contain h-10 w-10 shrink-0"
           />
           {(isExpanded || isHovered || isMobileOpen) && (
-            <span className="text-sm font-semibold text-gray-800 dark:text-white/90 whitespace-nowrap">
-              ERA PRE-UNIVERSITY
+            <span className="line-clamp-2 text-sm font-semibold leading-snug text-gray-800 dark:text-white/90">
+              {BRAND.name}
             </span>
           )}
         </Link>
       </div>
 
-      <div className="sidebar-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto pl-5 pr-2 pb-6 sm:pr-3 [-webkit-overflow-scrolling:touch]">
+      <div className="sidebar-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 pb-5 pt-5 sm:pr-3 [-webkit-overflow-scrolling:touch]">
         <nav className="pb-2">
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-7">
             {/* Academics Section (top) */}
             {academicsNav.length > 0 && (
               <div>
-                <h2 className={`mb-4 text-xs uppercase flex text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
-                  {isExpanded || isHovered || isMobileOpen ? "Academics" : <HorizontaLDots />}
+                <h2 className={`mb-2 flex text-[11px] font-semibold uppercase tracking-wider text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
+                  {isExpanded || isHovered || isMobileOpen ? "Academics" : <MoreHorizontal className="size-4" strokeWidth={1.8} />}
                 </h2>
                 {renderMenuItems(academicsNav, "academics")}
               </div>
@@ -458,8 +470,8 @@ const AppSidebar: React.FC = () => {
             {/* HR Section */}
             {hrNav.length > 0 && (
               <div>
-                <h2 className={`mb-4 text-xs uppercase flex text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
-                  {isExpanded || isHovered || isMobileOpen ? "Human Resources" : <HorizontaLDots />}
+                <h2 className={`mb-2 flex text-[11px] font-semibold uppercase tracking-wider text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
+                  {isExpanded || isHovered || isMobileOpen ? "Human Resources" : <MoreHorizontal className="size-4" strokeWidth={1.8} />}
                 </h2>
                 {renderMenuItems(hrNav, "hr")}
               </div>
@@ -468,8 +480,8 @@ const AppSidebar: React.FC = () => {
             {/* Reports Section */}
             {reportsNav.length > 0 && (
               <div>
-                <h2 className={`mb-4 text-xs uppercase flex text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
-                  {isExpanded || isHovered || isMobileOpen ? "Reports" : <HorizontaLDots />}
+                <h2 className={`mb-2 flex text-[11px] font-semibold uppercase tracking-wider text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
+                  {isExpanded || isHovered || isMobileOpen ? "Reports" : <MoreHorizontal className="size-4" strokeWidth={1.8} />}
                 </h2>
                 {renderMenuItems(reportsNav, "reports")}
               </div>
@@ -478,8 +490,8 @@ const AppSidebar: React.FC = () => {
             {/* Activities Section (bottom): Users, Roles, Permissions */}
             {activitiesNav.length > 0 && (
               <div>
-                <h2 className={`mb-4 text-xs uppercase flex text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
-                  {isExpanded || isHovered || isMobileOpen ? "Activities" : <HorizontaLDots />}
+                <h2 className={`mb-2 flex text-[11px] font-semibold uppercase tracking-wider text-gray-400 ${!isExpanded && !isHovered ? "lg:justify-center" : "justify-start"}`}>
+                  {isExpanded || isHovered || isMobileOpen ? "Activities" : <MoreHorizontal className="size-4" strokeWidth={1.8} />}
                 </h2>
                 {renderMenuItems(activitiesNav, "activities")}
               </div>

@@ -19,15 +19,15 @@ import Link from "next/link";
 import { authFetch } from "@/lib/api";
 import { ModalOverlayGate } from "@/context/ModalOverlayContext";
 import { useAuth } from "@/context/AuthContext";
-import { ArrowUpIcon, DownloadIcon, PencilIcon, PlusIcon, TrashBinIcon, UserCircleIcon } from "@/icons";
+import StudentRowActions from "@/components/admission/StudentRowActions";
+import { ArrowUpIcon, DownloadIcon, PlusIcon } from "@/icons";
 
 type Department = { id: number; name: string; code: string };
 
 type ClassInfo = {
   id: number;
   name: string;
-  semester: string;
-  year: number;
+    year: number;
   course: { code: string };
   departmentId?: number;
 };
@@ -78,6 +78,31 @@ const PAYMENT_STATUS_COLOR: Record<string, "success" | "info" | "primary"> = {
   "Fully Paid": "primary",
 };
 
+function studentListStickyClasses(hasCheckbox: boolean) {
+  const headerBg = "bg-gray-50 dark:bg-white/3";
+  const cellBg =
+    "bg-white group-hover:bg-gray-50/50 dark:bg-gray-900 dark:group-hover:bg-white/2";
+  const edge = "shadow-[4px_0_12px_-6px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_12px_-6px_rgba(0,0,0,0.35)]";
+
+  if (hasCheckbox) {
+    return {
+      checkbox: `sticky left-0 z-20 ${cellBg} px-2!`,
+      checkboxHeader: `sticky left-0 z-30 ${headerBg} px-2!`,
+      index: `sticky left-10 z-20 w-10 ${cellBg} px-3!`,
+      indexHeader: `sticky left-10 z-30 w-10 ${headerBg} px-3!`,
+      student: `sticky left-20 z-20 min-w-[15rem] ${cellBg} ${edge} px-3!`,
+      studentHeader: `sticky left-20 z-30 min-w-[15rem] ${headerBg} ${edge} px-3!`,
+    };
+  }
+
+  return {
+    index: `sticky left-0 z-20 w-10 ${cellBg} px-3!`,
+    indexHeader: `sticky left-0 z-30 w-10 ${headerBg} px-3!`,
+    student: `sticky left-10 z-20 min-w-[15rem] ${cellBg} ${edge} px-3!`,
+    studentHeader: `sticky left-10 z-30 min-w-[15rem] ${headerBg} ${edge} px-3!`,
+  };
+}
+
 export default function AdmissionPage() {
   const { hasPermission } = useAuth();
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -95,6 +120,7 @@ export default function AdmissionPage() {
   const [importLoading, setImportLoading] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; errors?: string[] } | null>(null);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [openActionsId, setOpenActionsId] = useState<number | null>(null);
 
   const {
     page,
@@ -111,6 +137,8 @@ export default function AdmissionPage() {
   const canCreate = hasPermission("admission.create");
   const canEdit = hasPermission("admission.edit");
   const canDelete = hasPermission("admission.delete");
+  const showCheckbox = canDelete && total > 0;
+  const sticky = studentListStickyClasses(showCheckbox);
 
   const refreshStatusStats = useCallback(async () => {
     const res = await authFetch("/api/students/stats");
@@ -159,11 +187,9 @@ export default function AdmissionPage() {
     if (res.ok) {
       const data = await res.json();
       setClasses(
-        data.map((c: { id: number; name: string; semester: string; year: number; department: { id: number; code: string } }) => ({
+        data.map((c: { id: number; name: string; department: { id: number; code: string } }) => ({
           id: c.id,
           name: c.name,
-          semester: c.semester,
-          year: c.year,
           department: { code: c.department?.code ?? "" },
           departmentId: c.department?.id ?? 0,
         }))
@@ -185,6 +211,7 @@ export default function AdmissionPage() {
 
   useEffect(() => {
     setSelectedIds(new Set());
+    setOpenActionsId(null);
   }, [page]);
 
   async function handleDownloadTemplate() {
@@ -406,7 +433,7 @@ export default function AdmissionPage() {
       </div>
 
       {/* Card */}
-      <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
+      <div className="min-w-0 rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
         {/* Toolbar */}
         <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
@@ -499,11 +526,14 @@ export default function AdmissionPage() {
           </div>
         ) : (
           <>
-          <Table>
+          <p className="border-b border-gray-100 px-5 py-2 text-xs text-gray-400 xl:hidden dark:border-gray-800 dark:text-gray-500">
+            Scroll right to see more columns. Student names stay fixed on the left.
+          </p>
+          <Table className="w-max min-w-full">
             <TableHeader>
               <TableRow className="bg-transparent! hover:bg-transparent!">
-                {canDelete && total > 0 && (
-                  <TableCell isHeader className="w-12 px-3">
+                {showCheckbox && (
+                  <TableCell isHeader className={sticky.checkboxHeader}>
                     <input
                       type="checkbox"
                       checked={selectedIds.size === students.length && students.length > 0}
@@ -513,24 +543,24 @@ export default function AdmissionPage() {
                     />
                   </TableCell>
                 )}
-                <TableCell isHeader>#</TableCell>
-                <TableCell isHeader>Student</TableCell>
-                <TableCell isHeader>Student ID</TableCell>
-                <TableCell isHeader>Department</TableCell>
-                <TableCell isHeader>Adm. year</TableCell>
-                <TableCell isHeader>Class</TableCell>
-                <TableCell isHeader>Status</TableCell>
-                <TableCell isHeader>Payment</TableCell>
-                <TableCell isHeader className="text-right">Monthly fee</TableCell>
-                <TableCell isHeader className="text-right">Balance</TableCell>
-                <TableCell isHeader className="text-right">Actions</TableCell>
+                <TableCell isHeader className={sticky.indexHeader}>#</TableCell>
+                <TableCell isHeader className={sticky.studentHeader}>Student</TableCell>
+                <TableCell isHeader className="min-w-[6.5rem] whitespace-nowrap px-3!">Student ID</TableCell>
+                <TableCell isHeader className="min-w-[7.5rem] px-3!">Department</TableCell>
+                <TableCell isHeader className="hidden min-w-[6.5rem] whitespace-nowrap px-3! xl:table-cell">Adm. year</TableCell>
+                <TableCell isHeader className="min-w-[7rem] px-3!">Class</TableCell>
+                <TableCell isHeader className="min-w-[5.5rem] px-3!">Status</TableCell>
+                <TableCell isHeader className="hidden min-w-[7rem] px-3! xl:table-cell">Payment</TableCell>
+                <TableCell isHeader className="hidden min-w-[5.5rem] whitespace-nowrap px-3! text-right xl:table-cell">Monthly fee</TableCell>
+                <TableCell isHeader className="min-w-[5rem] px-3! text-right">Balance</TableCell>
+                <TableCell isHeader className="min-w-[3.5rem] px-3! text-right">Actions</TableCell>
               </TableRow>
             </TableHeader>
             <TableBody>
               {students.map((s, idx) => (
-                <TableRow key={s.id}>
-                  {canDelete && total > 0 && (
-                    <TableCell className="w-12 px-3">
+                <TableRow key={s.id} className="group">
+                  {showCheckbox && (
+                    <TableCell className={sticky.checkbox}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(s.id)}
@@ -540,40 +570,41 @@ export default function AdmissionPage() {
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-medium text-gray-400 dark:text-gray-500">
+                  <TableCell className={`${sticky.index} font-medium text-gray-400 dark:text-gray-500`}>
                     {globalRowIndex(page, pageSize, idx)}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
+                  <TableCell className={sticky.student}>
+                    <div className="flex min-w-0 items-center gap-2.5">
                       {s.imageUrl ? (
                         <Image
                           src={s.imageUrl}
                           alt={`${s.firstName} ${s.lastName}`}
                           width={36}
                           height={36}
-                          className="h-9 w-9 rounded-full object-cover"
+                          className="h-8 w-8 shrink-0 rounded-full object-cover sm:h-9 sm:w-9"
                         />
                       ) : (
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-600 sm:h-9 sm:w-9 sm:text-sm dark:bg-brand-500/10 dark:text-brand-400">
                           {s.firstName.charAt(0)}{s.lastName.charAt(0)}
                         </div>
                       )}
                       <div className="min-w-0">
                         <Link
                           href={`/students/${encodeURIComponent(s.studentId)}`}
-                          className="font-semibold text-gray-800 hover:text-brand-600 hover:underline dark:text-white/90 dark:hover:text-brand-400"
+                          className="block whitespace-nowrap font-semibold text-gray-800 hover:text-brand-600 hover:underline dark:text-white/90 dark:hover:text-brand-400"
+                          title={`${s.firstName} ${s.lastName}`}
                         >
                           {s.firstName} {s.lastName}
                         </Link>
                         {s.gender && (
-                          <p className="text-xs text-gray-400 dark:text-gray-500">
+                          <p className="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500">
                             {s.gender}
                           </p>
                         )}
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap px-3!">
                     <Link
                       href={`/students/${encodeURIComponent(s.studentId)}`}
                       className="font-mono text-xs font-semibold text-brand-600 hover:underline dark:text-brand-400"
@@ -581,63 +612,44 @@ export default function AdmissionPage() {
                       {s.studentId}
                     </Link>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap px-3!">
                     <Badge color="info" size="sm">{s.department.name}</Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-gray-600 dark:text-gray-400">
+                  <TableCell className="hidden whitespace-nowrap px-3! text-sm text-gray-600 xl:table-cell dark:text-gray-400">
                     {s.admissionAcademicYear?.name ?? "—"}
                   </TableCell>
-                  <TableCell className="max-w-[140px] text-sm text-gray-700 dark:text-gray-300">
-                    <span className="block truncate" title={s.class ? `${s.class.name} (${s.class.semester} ${s.class.year})` : undefined}>
-                      {s.class ? `${s.class.name} (${s.class.semester} ${s.class.year})` : "—"}
-                    </span>
+                  <TableCell className="whitespace-nowrap px-3! text-sm text-gray-700 dark:text-gray-300">
+                    {s.class ? `${s.class.name}` : "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="whitespace-nowrap px-3!">
                     <Badge color={STATUS_COLOR[s.status] || "light"} size="sm">
                       {s.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden whitespace-nowrap px-3! xl:table-cell">
                     <Badge color={PAYMENT_STATUS_COLOR[s.paymentStatus] || "light"} size="sm">
                       {s.paymentStatus || "Fully Paid"}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right text-sm text-gray-700 dark:text-gray-300">
+                  <TableCell className="hidden whitespace-nowrap px-3! text-right text-sm text-gray-700 xl:table-cell dark:text-gray-300">
                     {s.fee != null ? `$${s.fee.toLocaleString()}` : "—"}
                   </TableCell>
-                  <TableCell className="text-right font-medium text-gray-800 dark:text-white/90">
+                  <TableCell className="whitespace-nowrap px-3! text-right font-medium text-gray-800 dark:text-white/90">
                     ${(s.balance ?? 0).toLocaleString()}
                   </TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex items-center gap-1">
-                      <Link
-                        href={`/students/${encodeURIComponent(s.studentId)}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-500 dark:hover:bg-brand-500/10"
-                        aria-label="View Profile & ID Card"
-                        title="View Profile & ID Card"
-                      >
-                        <UserCircleIcon className="h-4 w-4" />
-                      </Link>
-                      {canEdit && (
-                        <Link
-                          href={`/admission/${s.id}/edit`}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-brand-50 hover:text-brand-500 dark:hover:bg-brand-500/10"
-                          aria-label="Edit"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                        </Link>
-                      )}
-                      {canDelete && (
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(s.id)}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-error-50 hover:text-error-500 dark:hover:bg-error-500/10"
-                          aria-label="Delete"
-                        >
-                          <TrashBinIcon className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                  <TableCell className="relative overflow-visible whitespace-nowrap px-3! text-right">
+                    <StudentRowActions
+                      studentId={s.studentId}
+                      editId={s.id}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      isOpen={openActionsId === s.id}
+                      onToggle={() =>
+                        setOpenActionsId((current) => (current === s.id ? null : s.id))
+                      }
+                      onClose={() => setOpenActionsId(null)}
+                      onDelete={() => handleDelete(s.id)}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

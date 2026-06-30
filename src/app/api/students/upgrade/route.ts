@@ -3,7 +3,7 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 /**
- * Upgrade students to another semester/class.
+ * Upgrade students to another class.
  * - Class upgrade: all students in a class move to target class
  * - Single student: one student moves to target class
  *
@@ -116,8 +116,6 @@ export async function POST(req: NextRequest) {
       targetClass: {
         id: targetClass.id,
         name: targetClass.name,
-        semester: targetClass.semester,
-        year: targetClass.year,
       },
     });
   } catch (e) {

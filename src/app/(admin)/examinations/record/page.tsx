@@ -16,27 +16,25 @@ import { globalRowIndex, usePagination } from "@/hooks/usePagination";
 import { authFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { DownloadIcon } from "@/icons";
+import { findAttendanceAssessmentKey } from "@/lib/course-assessments";
+import { computeExamRecordTotals } from "@/lib/exam-records";
 
-type FacultyInfo = { id: number; name: string; code: string };
-type DepartmentInfo = { id: number; name: string; code: string; facultyId?: number; faculty?: FacultyInfo };
+type DepartmentInfo = { id: number; name: string; code: string };
 type ClassInfo = {
   id: number;
   name: string;
   departmentId: number;
   department: { id: number; name: string; code: string };
-  semester: string;
-  year: number;
+    year: number;
 };
 
 type CourseInfo = { id: number; name: string; code: string; departmentId?: number };
 
 export default function RecordExamsPage() {
   const { hasPermission } = useAuth();
-  const [faculties, setFaculties] = useState<FacultyInfo[]>([]);
   const [departments, setDepartments] = useState<DepartmentInfo[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
 
-  const [templateFacultyId, setTemplateFacultyId] = useState("");
   const [templateDepartmentId, setTemplateDepartmentId] = useState("");
   const [templateClassId, setTemplateClassId] = useState("");
   const [templateCourseId, setTemplateCourseId] = useState("");
@@ -52,7 +50,7 @@ export default function RecordExamsPage() {
   const [recordClassId, setRecordClassId] = useState("");
   const [recordCourseId, setRecordCourseId] = useState("");
   const [recordClassData, setRecordClassData] = useState<{
-    class: { id: number; name: string; semester: string; year: number; department: { id: number; name: string; code: string } };
+    class: { id: number; name: string; department: { id: number; name: string; code: string } };
     course?: {
       id: number;
       name: string;
@@ -61,6 +59,7 @@ export default function RecordExamsPage() {
       assessments: { id: number; name: string; key: string; weightPercent: number; sortOrder: number }[];
     };
     totalSessions?: number;
+    attendanceAssessmentKey?: string | null;
     rows: {
       student: { id: number; studentId: string; firstName: string; lastName: string };
       attendance?: { present: number; absent: number; excused: number; totalSessions: number; attendancePercent: number; attendanceMarks: number };
@@ -92,7 +91,6 @@ export default function RecordExamsPage() {
   } = usePagination(recordRows, [recordClassId, recordCourseId]);
 
   useEffect(() => {
-    authFetch("/api/faculties").then((r) => { if (r.ok) r.json().then(setFaculties); });
     authFetch("/api/departments").then((r) => { if (r.ok) r.json().then(setDepartments); });
     authFetch("/api/classes").then((r) => { if (r.ok) r.json().then(setClasses); });
     authFetch("/api/courses").then((r) => { if (r.ok) r.json().then(setCourses); });
@@ -112,9 +110,6 @@ export default function RecordExamsPage() {
       .finally(() => setRecordLoading(false));
   }, [recordClassId, recordCourseId]);
 
-  const filteredDepartments = templateFacultyId
-    ? departments.filter((d) => (d.facultyId ?? d.faculty?.id) === Number(templateFacultyId))
-    : departments;
   const filteredClasses = templateDepartmentId
     ? classes.filter((c) => c.department?.id === Number(templateDepartmentId))
     : classes;
@@ -136,9 +131,8 @@ export default function RecordExamsPage() {
 
   const updateRecordRow = (
     idx: number,
-    field: "totalMarks" | "grade" | "gradePoints" | "score",
-    value: string | number,
-    scoreKey?: string
+    scoreKey: string,
+    value: string | number
   ) => {
     setRecordClassData((prev) => {
       if (!prev?.course?.assessments) return prev;
@@ -146,29 +140,36 @@ export default function RecordExamsPage() {
       const r = rows[idx];
       if (!r) return prev;
       const assessments = prev.course.assessments;
+      const attendanceKey =
+        prev.attendanceAssessmentKey ??
+        findAttendanceAssessmentKey(assessments);
+      if (scoreKey === attendanceKey) return prev;
+
       const rec = r.record ?? {
         scores: Object.fromEntries(assessments.map((a) => [a.key, 0])) as Record<string, number>,
         totalMarks: 0,
         grade: "",
         gradePoints: 0,
       };
-      const numVal = typeof value === "string" ? (value === "" ? 0 : parseFloat(value) || 0) : value;
-      const strVal = typeof value === "string" ? value : String(value);
-      const next = {
-        scores: { ...rec.scores },
-        totalMarks: rec.totalMarks,
-        grade: rec.grade,
-        gradePoints: rec.gradePoints,
+      const numVal =
+        typeof value === "string"
+          ? value === ""
+            ? 0
+            : parseFloat(value) || 0
+          : value;
+      const max =
+        assessments.find((a) => a.key === scoreKey)?.weightPercent ?? 100;
+      const nextScores = {
+        ...rec.scores,
+        [scoreKey]: Math.max(0, Math.min(max, numVal)),
       };
-      if (field === "grade") next.grade = strVal;
-      else if (field === "gradePoints") next.gradePoints = numVal;
-      else if (field === "totalMarks") next.totalMarks = numVal;
-      else if (field === "score" && scoreKey) {
-        const max = assessments.find((a) => a.key === scoreKey)?.weightPercent ?? 100;
-        next.scores[scoreKey] = Math.max(0, Math.min(max, numVal));
-        next.totalMarks = assessments.reduce((s, a) => s + (next.scores[a.key] ?? 0), 0);
-      }
-      rows[idx] = { ...r, record: next };
+      const attendanceMarks = r.attendance?.attendanceMarks ?? 0;
+      const totals = computeExamRecordTotals(
+        nextScores,
+        attendanceMarks,
+        assessments
+      );
+      rows[idx] = { ...r, record: totals };
       return { ...prev, rows };
     });
   };
@@ -335,26 +336,19 @@ export default function RecordExamsPage() {
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-600 dark:bg-brand-500/20 dark:text-brand-400">1</span>
               <span className="font-medium text-gray-800 dark:text-white/90">Download Template</span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Faculty</label>
-                <select value={templateFacultyId} onChange={(e) => { setTemplateFacultyId(e.target.value); setTemplateDepartmentId(""); setTemplateClassId(""); }} className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white/90">
-                  <option value="">All Faculties</option>
-                  {faculties.map((f) => <option key={f.id} value={f.id}>{f.code} - {f.name}</option>)}
-                </select>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Department</label>
                 <select value={templateDepartmentId} onChange={(e) => { setTemplateDepartmentId(e.target.value); setTemplateClassId(""); }} className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white/90">
                   <option value="">All Departments</option>
-                  {filteredDepartments.map((d) => <option key={d.id} value={d.id}>{d.code} - {d.name}</option>)}
+                  {departments.map((d) => <option key={d.id} value={d.id}>{d.code} - {d.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Class</label>
                 <select value={templateClassId} onChange={(e) => { setTemplateClassId(e.target.value); setTemplateCourseId(""); }} className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white/90">
                   <option value="">Select Class</option>
-                  {filteredClasses.map((c) => <option key={c.id} value={c.id}>{c.department?.code} - {c.name} ({c.semester} {c.year})</option>)}
+                  {filteredClasses.map((c) => <option key={c.id} value={c.id}>{c.department?.code} - {c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -380,7 +374,7 @@ export default function RecordExamsPage() {
                 <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Class</label>
                 <select value={importClassId} onChange={(e) => { setImportClassId(e.target.value); setImportCourseId(""); }} className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white/90">
                   <option value="">Select Class</option>
-                  {classes.map((c) => <option key={c.id} value={c.id}>{c.department?.code} - {c.name} ({c.semester} {c.year})</option>)}
+                  {classes.map((c) => <option key={c.id} value={c.id}>{c.department?.code} - {c.name}</option>)}
                 </select>
               </div>
               <div>
@@ -422,7 +416,9 @@ export default function RecordExamsPage() {
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/5">
         <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-800">
           <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Record Exam Grades</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Select Department and Class to enter grades directly. Save as draft, then approve when verified.</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Select Department, Class, and Course to enter grades. Attendance marks are calculated from recorded attendance sessions. Total, grade, and GPA update automatically.
+          </p>
         </div>
         <div className="p-6">
           <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
@@ -437,7 +433,7 @@ export default function RecordExamsPage() {
               <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">Class</label>
               <select value={recordClassId} onChange={(e) => { setRecordClassId(e.target.value); setRecordCourseId(""); setRecordClassData(null); }} className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white/90">
                 <option value="">Select Class</option>
-                {recordClasses.map((c) => <option key={c.id} value={c.id}>{c.department?.code} - {c.name} ({c.semester} {c.year})</option>)}
+                {recordClasses.map((c) => <option key={c.id} value={c.id}>{c.department?.code} - {c.name}</option>)}
               </select>
             </div>
             <div className="w-full sm:w-56">
@@ -465,6 +461,13 @@ export default function RecordExamsPage() {
             </div>
           ) : recordClassData && recordClassData.course && recordClassData.rows.length > 0 ? (
             <>
+            {recordClassData.totalSessions != null && (
+              <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+                {recordClassData.totalSessions} attendance session
+                {recordClassData.totalSessions === 1 ? "" : "s"} recorded for this course in{" "}
+                for this course.
+              </p>
+            )}
             <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
               <Table>
                 <TableHeader className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
@@ -486,6 +489,9 @@ export default function RecordExamsPage() {
                 <TableBody>
                   {paginatedRecordRows.map((r, idx) => {
                     const assessments = recordClassData.course!.assessments;
+                    const attendanceKey =
+                      recordClassData.attendanceAssessmentKey ??
+                      findAttendanceAssessmentKey(assessments);
                     const rec = r.record ?? {
                       scores: Object.fromEntries(assessments.map((a) => [a.key, 0])) as Record<string, number>,
                       totalMarks: 0,
@@ -499,24 +505,44 @@ export default function RecordExamsPage() {
                         <TableCell className="px-3 py-2 font-mono text-sm text-gray-800 dark:text-white/90">{r.student.studentId}</TableCell>
                         <TableCell className="px-3 py-2 text-sm font-medium text-gray-800 dark:text-white/90">{r.student.firstName} {r.student.lastName}</TableCell>
                         <TableCell className="px-3 py-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                          <span title="Attendance % (Present+Excused)">{r.attendance != null ? `${r.attendance.attendancePercent}%` : "—"}</span>
+                          <span title={`${r.attendance?.present ?? 0} present, ${r.attendance?.excused ?? 0} excused / ${r.attendance?.totalSessions ?? 0} sessions`}>
+                            {r.attendance != null ? `${r.attendance.attendancePercent}%` : "—"}
+                          </span>
                         </TableCell>
-                        {assessments.map((a) => (
-                          <TableCell key={a.key} className="p-2">
-                            <input
-                              type="number"
-                              min={0}
-                              max={a.weightPercent}
-                              step={0.5}
-                              value={rec.scores[a.key] ?? ""}
-                              onChange={(e) => updateRecordRow(globalIdx, "score", e.target.value, a.key)}
-                              className={inputCellClass}
-                            />
-                          </TableCell>
-                        ))}
-                        <TableCell className="p-2"><input type="number" min={0} max={100} step={0.5} value={rec.totalMarks || ""} onChange={(e) => updateRecordRow(globalIdx, "totalMarks", e.target.value)} className={`${inputCellClass} font-semibold`} /></TableCell>
-                        <TableCell className="p-2"><input type="text" value={rec.grade || ""} onChange={(e) => updateRecordRow(globalIdx, "grade", e.target.value)} placeholder="A" className={inputCellClass} maxLength={3} /></TableCell>
-                        <TableCell className="p-2"><input type="number" min={0} max={4} step={0.1} value={rec.gradePoints || ""} onChange={(e) => updateRecordRow(globalIdx, "gradePoints", e.target.value)} className={inputCellClass} /></TableCell>
+                        {assessments.map((a) => {
+                          const isAttendance = a.key === attendanceKey;
+                          return (
+                            <TableCell key={a.key} className="p-2">
+                              {isAttendance ? (
+                                <span
+                                  className="flex h-9 min-w-[3.5rem] items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 px-2 text-center text-sm text-gray-600 dark:border-gray-600 dark:bg-gray-800/50 dark:text-gray-300"
+                                  title="Auto-calculated from attendance sessions"
+                                >
+                                  {(rec.scores[a.key] ?? 0).toFixed(2)}
+                                </span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={a.weightPercent}
+                                  step={0.5}
+                                  value={rec.scores[a.key] ?? ""}
+                                  onChange={(e) => updateRecordRow(globalIdx, a.key, e.target.value)}
+                                  className={inputCellClass}
+                                />
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="p-2 text-center text-sm font-semibold text-gray-800 dark:text-white/90">
+                          {rec.totalMarks.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="p-2 text-center text-sm font-semibold text-gray-800 dark:text-white/90">
+                          {rec.grade || "—"}
+                        </TableCell>
+                        <TableCell className="p-2 text-center text-sm text-gray-700 dark:text-gray-300">
+                          {rec.gradePoints > 0 ? rec.gradePoints.toFixed(1) : "0.0"}
+                        </TableCell>
                       </TableRow>
                     );
                   })}

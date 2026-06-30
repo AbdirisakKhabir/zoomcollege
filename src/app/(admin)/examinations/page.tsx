@@ -20,14 +20,11 @@ import { useAuth } from "@/context/AuthContext";
 import { PencilIcon, PlusIcon, TrashBinIcon } from "@/icons";
 
 // Types
-type FacultyInfo = { id: number; name: string; code: string };
-type DepartmentInfo = { id: number; name: string; code: string; facultyId?: number; faculty?: FacultyInfo };
 type ClassInfo = {
   id: number;
   name: string;
   courseId: number;
-  semester: string;
-  year: number;
+    year: number;
   course: { id: number; name: string; code: string; department?: { id: number; name: string; code: string } };
 };
 
@@ -54,6 +51,7 @@ type StudentInfo = {
   firstName: string;
   lastName: string;
   imageUrl: string | null;
+  classId?: number | null;
   departmentId?: number;
   department?: { id: number; name: string; code: string };
 };
@@ -62,8 +60,7 @@ type ExamRecord = {
   id: number;
   studentId: number;
   courseId: number;
-  semester: string;
-  year: number;
+    year: number;
   scores: Record<string, number> | null;
   totalMarks: number;
   grade: string | null;
@@ -72,8 +69,7 @@ type ExamRecord = {
   course: CourseInfo;
 };
 
-type SemesterGPA = {
-  semester: string;
+type YearGPA = {
   year: number;
   gpa: number;
   totalCredits: number;
@@ -87,7 +83,7 @@ type GPAResponse = {
   gpa: {
     cumulativeGPA: number;
     totalCredits: number;
-    semesters: SemesterGPA[];
+    years: YearGPA[];
   };
 };
 
@@ -103,8 +99,6 @@ const GRADE_COLORS: Record<string, "success" | "primary" | "warning" | "error" |
   F: "error",
 };
 
-type SemesterOption = { id: number; name: string; sortOrder: number; isActive: boolean };
-
 function formatScoreBreakdown(
   scores: Record<string, number> | null | undefined,
   assessments: CourseAssessmentInfo[] | undefined
@@ -119,14 +113,10 @@ export default function ExaminationsPage() {
   const [records, setRecords] = useState<ExamRecord[]>([]);
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [courses, setCourses] = useState<CourseInfo[]>([]);
-  const [faculties, setFaculties] = useState<FacultyInfo[]>([]);
-  const [departments, setDepartments] = useState<DepartmentInfo[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
-  const [semesters, setSemesters] = useState<SemesterOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
-  const [filterSemester, setFilterSemester] = useState("");
   const [filterCourseId, setFilterCourseId] = useState("");
   const [filterYear, setFilterYear] = useState("");
 
@@ -145,7 +135,6 @@ export default function ExaminationsPage() {
   const [form, setForm] = useState({
     studentId: "",
     courseId: "",
-    semester: "",
     year: new Date().getFullYear().toString(),
   });
   const [scoreForm, setScoreForm] = useState<Record<string, string>>({});
@@ -155,14 +144,13 @@ export default function ExaminationsPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filterSemester) params.set("semester", filterSemester);
       if (filterCourseId) params.set("courseId", filterCourseId);
       if (filterYear) params.set("year", filterYear);
       const res = await authFetch(`/api/examinations?${params.toString()}`);
       if (res.ok) setRecords(await res.json());
     } catch { /* empty */ }
     setLoading(false);
-  }, [filterSemester, filterCourseId, filterYear]);
+  }, [filterCourseId, filterYear]);
 
   const fetchStudents = useCallback(async () => {
     try {
@@ -181,31 +169,10 @@ export default function ExaminationsPage() {
     } catch { /* empty */ }
   }, []);
 
-  const fetchFaculties = useCallback(async () => {
-    try {
-      const res = await authFetch("/api/faculties");
-      if (res.ok) setFaculties(await res.json());
-    } catch { /* empty */ }
-  }, []);
-
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const res = await authFetch("/api/departments");
-      if (res.ok) setDepartments(await res.json());
-    } catch { /* empty */ }
-  }, []);
-
   const fetchClasses = useCallback(async () => {
     try {
       const res = await authFetch("/api/classes");
       if (res.ok) setClasses(await res.json());
-    } catch { /* empty */ }
-  }, []);
-
-  const fetchSemesters = useCallback(async () => {
-    try {
-      const res = await authFetch("/api/semesters?active=true");
-      if (res.ok) setSemesters(await res.json());
     } catch { /* empty */ }
   }, []);
 
@@ -216,29 +183,26 @@ export default function ExaminationsPage() {
   useEffect(() => {
     fetchStudents();
     fetchCourses();
-    fetchFaculties();
-    fetchDepartments();
     fetchClasses();
-    fetchSemesters();
-  }, [fetchStudents, fetchCourses, fetchFaculties, fetchDepartments, fetchClasses, fetchSemesters]);
-
-  useEffect(() => {
-    if (semesters.length > 0 && !form.semester) {
-      setForm((f) => ({ ...f, semester: semesters[0].name }));
-    }
-  }, [semesters]);
+  }, [fetchStudents, fetchCourses, fetchClasses]);
 
   useEffect(() => {
     if (!showModal || !form.courseId) {
       setCourseAssessments([]);
       return;
     }
+    const student = students.find((s) => String(s.id) === form.studentId);
+    const classId = student?.classId;
+    if (!classId) {
+      setCourseAssessments([]);
+      return;
+    }
     const id = Number(form.courseId);
-    authFetch(`/api/courses/${id}/assessments`)
+    authFetch(`/api/courses/${id}/assessments?classId=${classId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setCourseAssessments(Array.isArray(d?.assessments) ? d.assessments : []))
       .catch(() => setCourseAssessments([]));
-  }, [showModal, form.courseId]);
+  }, [showModal, form.courseId, form.studentId, students]);
 
   useEffect(() => {
     if (!showModal || courseAssessments.length === 0) return;
@@ -277,15 +241,13 @@ export default function ExaminationsPage() {
     total: filteredTotal,
     from,
     to,
-  } = usePagination(filtered, [search, filterSemester, filterCourseId, filterYear]);
+  } = usePagination(filtered, [search, filterCourseId, filterYear]);
 
-  // Open edit modal
   const openEdit = (r: ExamRecord) => {
     setEditingRecord(r);
     setForm({
       studentId: r.studentId.toString(),
       courseId: r.courseId.toString(),
-      semester: r.semester,
       year: r.year.toString(),
     });
     setFormError("");
@@ -308,7 +270,6 @@ export default function ExaminationsPage() {
         : {
             studentId: Number(form.studentId),
             courseId: Number(form.courseId),
-            semester: form.semester,
             year: Number(form.year),
             scores,
           };
@@ -420,16 +381,6 @@ export default function ExaminationsPage() {
             className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-4 text-sm text-gray-800 shadow-sm outline-none focus:border-brand-300 focus:ring-1 focus:ring-brand-300 dark:border-gray-700 dark:text-white/80 sm:w-64"
           />
           <select
-            value={filterSemester}
-            onChange={(e) => setFilterSemester(e.target.value)}
-            className="h-10 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none dark:border-gray-700 dark:text-white/80"
-          >
-            <option value="">All Semesters</option>
-            {semesters.map((s) => (
-              <option key={s.id} value={s.name}>{s.name}</option>
-            ))}
-          </select>
-          <select
             value={filterYear}
             onChange={(e) => setFilterYear(e.target.value)}
             className="h-10 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none dark:border-gray-700 dark:text-white/80"
@@ -458,7 +409,7 @@ export default function ExaminationsPage() {
               <TableRow>
                 <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Student</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Course</TableCell>
-                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Semester</TableCell>
+                <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Year</TableCell>
                 <TableCell isHeader className="min-w-[200px] px-5 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Components</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Total</TableCell>
                 <TableCell isHeader className="px-5 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Grade</TableCell>
@@ -503,7 +454,7 @@ export default function ExaminationsPage() {
                       <p className="text-xs text-gray-500 dark:text-gray-400">{r.course.name}</p>
                     </TableCell>
                     <TableCell className="px-5 py-3 text-center">
-                      <Badge variant="light" color="info">{r.semester} {r.year}</Badge>
+                      <Badge variant="light" color="info">{r.year}</Badge>
                     </TableCell>
                     <TableCell className="max-w-[280px] px-5 py-3 text-left text-xs text-gray-600 dark:text-gray-400">
                       {formatScoreBreakdown(
@@ -606,21 +557,6 @@ export default function ExaminationsPage() {
                 </select>
               </div>
 
-              {/* Semester */}
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Semester *</label>
-                <select
-                  value={form.semester}
-                  onChange={(e) => setForm({ ...form, semester: e.target.value })}
-                  disabled={!!editingRecord}
-                  className="h-10 w-full rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 disabled:opacity-60 dark:border-gray-700 dark:text-white/80"
-                >
-                  {semesters.map((s) => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Year */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Year *</label>
@@ -638,7 +574,13 @@ export default function ExaminationsPage() {
             <div className="mt-5">
               <h4 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Mark Components</h4>
               {courseAssessments.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Select a course to load its assessment breakdown.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {!form.studentId
+                    ? "Select a student and course to load assessment components for that student's class."
+                    : !students.find((s) => String(s.id) === form.studentId)?.classId
+                      ? "This student has no class assigned — assign a class in Admission first."
+                      : "No assessments found for this course in the student's class. Configure them on the Courses page."}
+                </p>
               ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                   {courseAssessments.map((a) => (
@@ -731,19 +673,19 @@ export default function ExaminationsPage() {
                   </div>
                 </div>
 
-                {/* Semester GPAs */}
-                {gpaData.gpa.semesters.length > 0 && (
+                {/* Year GPAs */}
+                {gpaData.gpa.years.length > 0 && (
                   <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {gpaData.gpa.semesters.map((sem) => (
+                    {gpaData.gpa.years.map((yr) => (
                       <div
-                        key={`${sem.semester}-${sem.year}`}
+                        key={yr.year}
                         className="rounded-xl border border-gray-100 px-4 py-3 dark:border-gray-800"
                       >
-                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{sem.semester} {sem.year}</p>
-                        <p className={`text-xl font-bold ${sem.gpa >= 3.0 ? "text-green-600 dark:text-green-400" : sem.gpa >= 2.0 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
-                          {sem.gpa.toFixed(2)}
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{yr.year}</p>
+                        <p className={`text-xl font-bold ${yr.gpa >= 3.0 ? "text-green-600 dark:text-green-400" : yr.gpa >= 2.0 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"}`}>
+                          {yr.gpa.toFixed(2)}
                         </p>
-                        <p className="text-[11px] text-gray-400">{sem.courses} courses &middot; {sem.totalCredits} credits</p>
+                        <p className="text-[11px] text-gray-400">{yr.courses} courses &middot; {yr.totalCredits} credits</p>
                       </div>
                     ))}
                   </div>
@@ -755,7 +697,7 @@ export default function ExaminationsPage() {
                     <thead>
                       <tr className="border-b border-gray-100 dark:border-gray-800">
                         <th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Course</th>
-                        <th className="px-3 py-2 text-center text-xs font-medium uppercase text-gray-500">Semester</th>
+                        <th className="px-3 py-2 text-center text-xs font-medium uppercase text-gray-500">Year</th>
                         <th className="px-3 py-2 text-center text-xs font-medium uppercase text-gray-500">Credits</th>
                         <th className="px-3 py-2 text-center text-xs font-medium uppercase text-gray-500">Total</th>
                         <th className="px-3 py-2 text-center text-xs font-medium uppercase text-gray-500">Grade</th>
@@ -769,7 +711,7 @@ export default function ExaminationsPage() {
                             <span className="font-medium text-gray-800 dark:text-white/90">{r.course.code}</span>
                             <span className="ml-2 text-gray-500 dark:text-gray-400">{r.course.name}</span>
                           </td>
-                          <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-300">{r.semester} {r.year}</td>
+                          <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-300">{r.year}</td>
                           <td className="px-3 py-2 text-center text-gray-600 dark:text-gray-300">{r.course.creditHours}</td>
                           <td className="px-3 py-2 text-center font-medium text-gray-800 dark:text-white/90">{r.totalMarks}</td>
                           <td className="px-3 py-2 text-center">

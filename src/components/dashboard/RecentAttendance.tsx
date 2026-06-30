@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import Link from "next/link";
+import React from "react";
 import {
   Table,
   TableBody,
@@ -12,36 +11,34 @@ import {
 } from "../ui/table";
 import { usePagination } from "@/hooks/usePagination";
 import Badge from "../ui/badge/Badge";
-import { authFetch } from "@/lib/api";
 import { CalenderIcon } from "@/icons";
+import { useDashboard } from "./DashboardContext";
+import DashboardCard from "./DashboardCard";
 
-type AttendanceItem = {
-  id: number;
-  class: { name: string; department: { code: string; name: string } };
-  date: string;
-  shift: string;
-  takenBy: { name: string | null };
-  totalRecords: number;
-  present: number;
-  absent: number;
-  late: number;
-  excused: number;
-  takenAt: string;
-};
+function AttendanceRate({ present, absent, total }: { present: number; absent: number; total: number }) {
+  const rate = total > 0 ? Math.round((present / total) * 100) : 0;
+  const color =
+    rate >= 80
+      ? "text-emerald-600 dark:text-emerald-400"
+      : rate >= 60
+        ? "text-amber-600 dark:text-amber-400"
+        : "text-red-500 dark:text-red-400";
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div className="flex items-center gap-1.5 text-sm">
+        <span className="font-semibold text-emerald-600 dark:text-emerald-400">{present}</span>
+        <span className="text-gray-300 dark:text-gray-600">/</span>
+        <span className="font-medium text-red-500 dark:text-red-400">{absent}</span>
+      </div>
+      <span className={`text-[10px] font-medium ${color}`}>{rate}% present</span>
+    </div>
+  );
+}
 
 export default function RecentAttendance() {
-  const [sessions, setSessions] = useState<AttendanceItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    authFetch("/api/dashboard")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.recentAttendance) setSessions(data.recentAttendance);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const { data, loading } = useDashboard();
+  const sessions = data?.recentAttendance ?? [];
 
   const {
     paginatedItems,
@@ -56,64 +53,66 @@ export default function RecentAttendance() {
   } = usePagination(sessions, []);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-4 shadow-sm dark:border-gray-800 dark:bg-white/5 sm:px-6 sm:pb-6">
-      <div className="mb-4 flex flex-col gap-2 pt-5 sm:flex-row sm:items-center sm:justify-between sm:pt-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400">
-            <CalenderIcon className="size-5" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Recent Attendance
-          </h3>
-        </div>
-        <Link
-          href="/attendance"
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
-        >
-          See all
-        </Link>
-      </div>
-      <div className="max-w-full overflow-x-auto">
+    <DashboardCard
+      title="Recent Attendance"
+      subtitle="Latest recorded class sessions"
+      icon={<CalenderIcon className="size-5" />}
+      iconClassName="bg-amber-500/15 text-amber-600 dark:bg-amber-500/25 dark:text-amber-400"
+      actionHref="/attendance"
+      actionLabel="See all"
+      loading={loading}
+      className="h-full"
+    >
+      <div className="-mx-1 max-w-full overflow-x-auto">
         <Table>
           <TableHeader className="border-y border-gray-100 dark:border-gray-800">
             <TableRow>
-              <TableCell isHeader className="py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <TableCell
+                isHeader
+                className="py-3 pl-1 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+              >
                 Class
               </TableCell>
-              <TableCell isHeader className="py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <TableCell
+                isHeader
+                className="py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+              >
                 Date
               </TableCell>
-              <TableCell isHeader className="py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <TableCell
+                isHeader
+                className="py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+              >
                 Shift
               </TableCell>
-              <TableCell isHeader className="py-3 text-center text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-                Present / Absent
+              <TableCell
+                isHeader
+                className="py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+              >
+                Attendance
               </TableCell>
-              <TableCell isHeader className="py-3 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+              <TableCell
+                isHeader
+                className="py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+              >
                 By
               </TableCell>
             </TableRow>
           </TableHeader>
           <TableBody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {loading ? (
+            {sessions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-                    <span className="text-sm text-gray-500">Loading...</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : sessions.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="py-8 text-center text-sm text-gray-500">
+                <TableCell colSpan={5} className="py-10 text-center text-sm text-gray-500">
                   No attendance sessions yet.
                 </TableCell>
               </TableRow>
             ) : (
               paginatedItems.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="py-3">
+                <TableRow
+                  key={s.id}
+                  className="transition-colors hover:bg-gray-50/80 dark:hover:bg-white/[0.02]"
+                >
+                  <TableCell className="py-3.5 pl-1">
                     <div>
                       <p className="font-medium text-gray-800 dark:text-white/90">
                         {s.class?.department?.code} – {s.class?.name}
@@ -123,20 +122,21 @@ export default function RecentAttendance() {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="py-3 text-center text-sm text-gray-600 dark:text-gray-300">
-                    {new Date(s.date).toLocaleDateString()}
+                  <TableCell className="py-3.5 text-center text-sm text-gray-600 dark:text-gray-300">
+                    {new Date(s.date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </TableCell>
-                  <TableCell className="py-3 text-center">
+                  <TableCell className="py-3.5 text-center">
                     <Badge variant="light" color="info" size="sm">
                       {s.shift}
                     </Badge>
                   </TableCell>
-                  <TableCell className="py-3 text-center">
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">{s.present}</span>
-                    <span className="text-gray-400 mx-1">/</span>
-                    <span className="text-sm text-red-600 dark:text-red-400">{s.absent}</span>
+                  <TableCell className="py-3.5 text-center">
+                    <AttendanceRate present={s.present} absent={s.absent} total={s.totalRecords} />
                   </TableCell>
-                  <TableCell className="py-3 text-sm text-gray-600 dark:text-gray-300">
+                  <TableCell className="py-3.5 text-sm text-gray-600 dark:text-gray-300">
                     {s.takenBy?.name ?? "—"}
                   </TableCell>
                 </TableRow>
@@ -144,17 +144,19 @@ export default function RecentAttendance() {
             )}
           </TableBody>
         </Table>
-        <TablePagination
-          page={page}
-          totalPages={totalPages}
-          total={sessionsTotal}
-          from={from}
-          to={to}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-        />
+        {sessions.length > 0 && (
+          <TablePagination
+            page={page}
+            totalPages={totalPages}
+            total={sessionsTotal}
+            from={from}
+            to={to}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
-    </div>
+    </DashboardCard>
   );
 }

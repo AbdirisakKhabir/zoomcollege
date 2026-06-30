@@ -1,21 +1,22 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
+import { Outfit } from "next/font/google";
 import './globals.css';
 import "flatpickr/dist/flatpickr.css";
 import { SidebarProvider } from '@/context/SidebarContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
 
-const roboto = Roboto({
+const outfit = Outfit({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
   display: "swap",
-  variable: "--font-roboto",
+  variable: "--font-outfit",
 });
 
+import { BRAND, pageTitle } from "@/lib/brand";
+
 export const metadata: Metadata = {
-  title: "Era Pre-University",
-  description: "Era Pre-University Admin Dashboard",
+  title: BRAND.name,
+  description: `${BRAND.name} Admin Dashboard`,
 };
 
 export default function RootLayout({
@@ -24,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={roboto.variable}>
-      <body className={`${roboto.className} min-h-screen overflow-x-clip antialiased dark:bg-gray-900`}>
+    <html lang="en" className={`${outfit.variable} ${outfit.className}`}>
+      <body className="min-h-screen overflow-x-clip antialiased font-sans dark:bg-gray-900">
         <ThemeProvider>
           <AuthProvider>
             <SidebarProvider>{children}</SidebarProvider>

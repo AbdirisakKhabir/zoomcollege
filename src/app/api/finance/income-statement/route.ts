@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  defaultReportDateRange,
+  parseReportDateRangeFromSearchParams,
+} from "@/lib/report-date-range";
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,56 +14,57 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const year = searchParams.get("year") || String(new Date().getFullYear());
-    const y = Number(year) || new Date().getFullYear();
+    const range = parseReportDateRangeFromSearchParams(
+      searchParams,
+      defaultReportDateRange("year")
+    );
+    if ("error" in range) {
+      return NextResponse.json({ error: range.error }, { status: 400 });
+    }
 
-    const startOfYear = new Date(`${y}-01-01T00:00:00.000Z`);
-    const endOfYear = new Date(`${y}-12-31T23:59:59.999Z`);
+    const paymentDateRange = { gte: range.start, lte: range.end };
 
-    const [tuitionRevenue, monthlyFeeRevenue] = await Promise.all([
+    const [registrationRevenue, monthlyFeeRevenue] = await Promise.all([
       prisma.tuitionPayment.aggregate({
-        where: { year: y },
+        where: { paymentDate: paymentDateRange },
         _sum: { amount: true },
         _count: true,
       }),
       prisma.studentMonthlyPayment.aggregate({
-        where: { year: y },
+        where: { paymentDate: paymentDateRange },
         _sum: { amount: true },
         _count: true,
       }),
     ]);
 
-    // Expenses: approved expenses
     const approvedExpenses = await prisma.expense.aggregate({
       where: {
         status: "approved",
-        approvedAt: { gte: startOfYear, lte: endOfYear },
+        approvedAt: paymentDateRange,
       },
       _sum: { amount: true },
       _count: true,
     });
 
-    // Bank withdrawals (direct, not from expense workflow)
     const withdrawals = await prisma.bankWithdrawal.aggregate({
       where: {
-        withdrawnAt: { gte: startOfYear, lte: endOfYear },
+        withdrawnAt: paymentDateRange,
       },
       _sum: { amount: true },
       _count: true,
     });
 
-    const tuitionAmt = tuitionRevenue._sum.amount ?? 0;
+    const registrationAmt = registrationRevenue._sum.amount ?? 0;
     const monthlyFeeAmt = monthlyFeeRevenue._sum.amount ?? 0;
-    const totalRevenue = tuitionAmt + monthlyFeeAmt;
+    const totalRevenue = registrationAmt + monthlyFeeAmt;
     const totalExpenses = (approvedExpenses._sum.amount ?? 0) + (withdrawals._sum.amount ?? 0);
     const netIncome = totalRevenue - totalExpenses;
 
-    // Category breakdown for approved expenses
     const expensesByCategory = await prisma.expense.groupBy({
       by: ["category"],
       where: {
         status: "approved",
-        approvedAt: { gte: startOfYear, lte: endOfYear },
+        approvedAt: paymentDateRange,
       },
       _sum: { amount: true },
       _count: true,
@@ -72,14 +77,15 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({
-      year: y,
+      dateFrom: range.dateFrom,
+      dateTo: range.dateTo,
       revenue: {
-        tuition: tuitionAmt,
+        registrationFee: registrationAmt,
         monthlyFee: monthlyFeeAmt,
         total: totalRevenue,
-        tuitionPaymentCount: tuitionRevenue._count,
+        registrationPaymentCount: registrationRevenue._count,
         monthlyPaymentCount: monthlyFeeRevenue._count,
-        paymentCount: tuitionRevenue._count + monthlyFeeRevenue._count,
+        paymentCount: registrationRevenue._count + monthlyFeeRevenue._count,
       },
       expenses: {
         approvedExpenses: approvedExpenses._sum.amount ?? 0,

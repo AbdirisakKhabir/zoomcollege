@@ -36,7 +36,7 @@ interface TableCellProps {
 const Table: React.FC<TableProps> = ({ children, className }) => {
   return (
     <div
-      className="relative isolate w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+      className="relative isolate w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-gutter:stable]"
       role="region"
       aria-label="Scrollable table"
     >

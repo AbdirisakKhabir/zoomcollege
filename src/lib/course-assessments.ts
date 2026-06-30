@@ -29,6 +29,31 @@ export function isValidAssessmentKey(key: string): boolean {
   return KEY_RE.test(String(key).trim());
 }
 
+/** Assessment key used for attendance marks (10% component). */
+export function findAttendanceAssessmentKey(
+  assessments: CourseAssessmentLike[]
+): string | null {
+  const exact = assessments.find(
+    (a) => a.key === "attendance" || a.key === "presentation"
+  );
+  if (exact) return exact.key;
+  const byName = assessments.find((a) =>
+    /attendance|presentation/i.test(a.name)
+  );
+  return byName?.key ?? null;
+}
+
+/** Inject computed attendance marks into the scores map. */
+export function applyAttendanceToScores(
+  scores: Record<string, number>,
+  attendanceMarks: number,
+  assessments: CourseAssessmentLike[]
+): Record<string, number> {
+  const key = findAttendanceAssessmentKey(assessments);
+  if (!key) return { ...scores };
+  return { ...scores, [key]: attendanceMarks };
+}
+
 export function parseScoresJson(raw: unknown): Record<string, number> {
   if (raw == null) return {};
   if (typeof raw === "string") {

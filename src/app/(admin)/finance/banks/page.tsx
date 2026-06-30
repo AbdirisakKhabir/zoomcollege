@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
 import {
@@ -16,7 +15,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { authFetch } from "@/lib/api";
 import { ModalOverlayGate } from "@/context/ModalOverlayContext";
 import { useAuth } from "@/context/AuthContext";
-import { ChevronLeftIcon, PlusIcon } from "@/icons";
+import { PlusIcon } from "@/icons";
 
 type Bank = { id: number; name: string; code: string; balance: number; accountNumber?: string | null; isActive: boolean };
 
@@ -186,16 +185,9 @@ export default function BanksPage() {
 
   return (
     <div>
-      <PageBreadCrumb pageTitle="Banks" />
+      <PageBreadCrumb pageTitle="Accounts" />
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <Link
-          href="/finance"
-          className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-        >
-          <ChevronLeftIcon className="h-4 w-4" />
-          Back to Finance
-        </Link>
+      <div className="mb-6 flex flex-wrap items-center justify-end gap-4">
         <div className="flex gap-2">
           {canWithdraw && banks.length > 0 && (
             <Button
@@ -224,7 +216,7 @@ export default function BanksPage() {
           )}
           {canCreate && (
             <Button size="sm" startIcon={<PlusIcon />} onClick={() => setModal("add")}>
-              Add Bank
+              Add Account
             </Button>
           )}
         </div>
@@ -232,7 +224,7 @@ export default function BanksPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/5">
-          <h3 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">Total Bank Balance</h3>
+          <h3 className="mb-2 text-sm font-medium text-gray-500 dark:text-gray-400">Total Account Balance</h3>
           <p className="text-3xl font-bold text-green-600 dark:text-green-400">
             ${totalBalance.toLocaleString()}
           </p>
@@ -241,7 +233,7 @@ export default function BanksPage() {
 
       <div className="mt-6 min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/5">
         <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Bank Accounts</h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">Accounts</h3>
         </div>
         {loading ? (
           <div className="flex justify-center py-16">
@@ -249,10 +241,10 @@ export default function BanksPage() {
           </div>
         ) : banks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
-            <p className="text-sm text-gray-500 dark:text-gray-400">No banks yet.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">No accounts yet.</p>
             {canCreate && (
               <Button className="mt-3" size="sm" onClick={() => setModal("add")}>
-                Add Bank
+                Add Account
               </Button>
             )}
           </div>
@@ -311,7 +303,7 @@ export default function BanksPage() {
         <ModalOverlayGate>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-xl dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Add Bank</h2>
+            <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Add Account</h2>
             <form onSubmit={handleAddBank} className="space-y-4">
               {formError && (
                 <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-400">
@@ -355,7 +347,7 @@ export default function BanksPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={formSubmitting} size="sm">
-                  {formSubmitting ? "Creating..." : "Create Bank"}
+                  {formSubmitting ? "Creating..." : "Create Account"}
                 </Button>
               </div>
             </form>
@@ -369,7 +361,7 @@ export default function BanksPage() {
         <ModalOverlayGate>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-xl dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Withdraw from Bank</h2>
+            <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Withdraw from Account</h2>
             <form onSubmit={handleWithdraw} className="space-y-4">
               {withdrawError && (
                 <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-400">
@@ -377,7 +369,7 @@ export default function BanksPage() {
                 </div>
               )}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Bank</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Account</label>
                 <select
                   value={selectedBankId}
                   onChange={(e) => setSelectedBankId(Number(e.target.value))}
@@ -430,7 +422,7 @@ export default function BanksPage() {
         <ModalOverlayGate>
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white px-6 py-5 shadow-xl dark:border-gray-700 dark:bg-gray-900">
-            <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Transfer Between Banks</h2>
+            <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Transfer Between Accounts</h2>
             <form onSubmit={handleTransfer} className="space-y-4">
               {transferError && (
                 <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-400">
@@ -438,7 +430,7 @@ export default function BanksPage() {
                 </div>
               )}
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">From Bank</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">From Account</label>
                 <select
                   value={transferFromId}
                   onChange={(e) => setTransferFromId(e.target.value)}
@@ -450,7 +442,7 @@ export default function BanksPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">To Bank</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">To Account</label>
                 <select
                   value={transferToId}
                   onChange={(e) => setTransferToId(e.target.value)}

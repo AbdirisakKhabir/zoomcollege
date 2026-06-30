@@ -12,16 +12,30 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const departmentId = searchParams.get("departmentId");
     const classId = searchParams.get("classId");
+    const courseId = searchParams.get("courseId");
+    const studentId = searchParams.get("studentId");
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
 
-    const where: { classId?: number; class?: { departmentId?: number }; date?: { gte?: Date; lte?: Date } } = {};
+    const where: {
+      classId?: number;
+      courseId?: number;
+      class?: { departmentId?: number };
+      date?: { gte?: Date; lte?: Date };
+      records?: { some: { studentId: number } };
+    } = {};
 
     if (departmentId) {
       where.class = { departmentId: Number(departmentId) };
     }
     if (classId) {
       where.classId = Number(classId);
+    }
+    if (courseId) {
+      where.courseId = Number(courseId);
+    }
+    if (studentId) {
+      where.records = { some: { studentId: Number(studentId) } };
     }
     if (dateFrom || dateTo) {
       where.date = {};
@@ -36,11 +50,10 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             name: true,
-            semester: true,
-            year: true,
             department: { select: { id: true, name: true, code: true } },
           },
         },
+        course: { select: { id: true, code: true, name: true } },
         takenBy: { select: { id: true, name: true, email: true } },
         records: { select: { status: true } },
       },
@@ -67,6 +80,7 @@ export async function GET(req: NextRequest) {
       return {
         id: s.id,
         class: s.class,
+        course: s.course,
         date: s.date,
         shift: s.shift,
         takenBy: s.takenBy,

@@ -12,8 +12,7 @@ type DepartmentOption = { id: number; name: string; code: string };
 type ClassOption = {
   id: number;
   name: string;
-  semester: string;
-  year: number;
+    year: number;
   department: { code: string; id: number };
 };
 
@@ -23,7 +22,7 @@ type SearchStudent = {
   firstName: string;
   lastName: string;
   department: { id: number; name: string; code: string };
-  class: { id: number; name: string; semester: string; year: number; department: { code: string } } | null;
+  class: { id: number; name: string; year: number; department: { code: string } } | null;
 };
 
 export default function TransferStudentPage() {
@@ -54,12 +53,10 @@ export default function TransferStudentPage() {
       if (r.ok) {
         const d = await r.json();
         setClasses(
-          d.map((c: { id: number; name: string; semester: string; year: number; department?: { code: string; id: number } }) => ({
+          d.map((c: { id: number; name: string; year: number; department?: { code: string; id: number } }) => ({
             id: c.id,
             name: c.name,
-            semester: c.semester,
-            year: c.year,
-            department: {
+                        department: {
               code: c.department?.code ?? "",
               id: c.department?.id ?? 0,
             },
@@ -261,7 +258,7 @@ export default function TransferStudentPage() {
                   <option value="">— No class / Clear class —</option>
                   {classOptionsForDept.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} — {c.department.code} ({c.semester} {c.year})
+                      {c.name} — {c.department.code} ({c.year})
                     </option>
                   ))}
                   {effectiveDeptId && classOptionsForDept.length === 0 && (

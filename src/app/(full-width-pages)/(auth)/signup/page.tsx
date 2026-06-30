@@ -1,9 +1,11 @@
 import SignUpForm from "@/components/auth/SignUpForm";
 import { Metadata } from "next";
 
+import { BRAND, pageTitle } from "@/lib/brand";
+
 export const metadata: Metadata = {
-  title: "Abaarso Tech University - Sign Up",
-  description: "Sign up for Abaarso Tech University",
+  title: pageTitle("Sign Up"),
+  description: `Sign up for ${BRAND.name}`,
 };
 
 export default function SignUp() {

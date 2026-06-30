@@ -5,9 +5,25 @@ import {
   isValidAssessmentKey,
   validateWeightsSum,
 } from "@/lib/course-assessments";
-import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
+import {
+  listClassesForCourse,
+  loadAssessmentsForClassCourse,
+  validateClassCourseAssignment,
+} from "@/lib/course-assessment-scope";
 
 type RouteContext = { params: Promise<{ id: string }> };
+
+function parseClassId(searchParams: URLSearchParams, body?: unknown): number | null {
+  const fromQuery = searchParams.get("classId");
+  const raw =
+    fromQuery ??
+    (body && typeof body === "object" && "classId" in body
+      ? String((body as { classId: unknown }).classId ?? "")
+      : "");
+  if (!raw) return null;
+  const classId = Number(raw);
+  return Number.isInteger(classId) && classId > 0 ? classId : null;
+}
 
 export async function GET(req: NextRequest, ctx: RouteContext) {
   try {
@@ -27,14 +43,32 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    await seedDefaultAssessmentsIfEmpty(courseId);
+    const { searchParams } = new URL(req.url);
+    const classId = parseClassId(searchParams);
+    const classes = await listClassesForCourse(courseId);
 
-    const assessments = await prisma.courseAssessment.findMany({
-      where: { courseId },
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    if (!classId) {
+      return NextResponse.json({
+        courseId,
+        classes,
+        assessments: [],
+        message:
+          classes.length === 0
+            ? "No active classes in this department yet."
+            : "Select a class to view or edit assessments.",
+      });
+    }
+
+    const valid = await validateClassCourseAssignment(courseId, classId);
+    if (!valid.ok) {
+      return NextResponse.json({ error: valid.error }, { status: 400 });
+    }
+
+    const assessments = await loadAssessmentsForClassCourse(courseId, classId, {
+      seedIfEmpty: true,
     });
 
-    return NextResponse.json({ courseId, assessments });
+    return NextResponse.json({ courseId, classId, classes, assessments });
   } catch (e) {
     console.error("Get course assessments error:", e);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
@@ -60,6 +94,19 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
     }
 
     const body = await req.json();
+    const classId = parseClassId(new URL(req.url).searchParams, body);
+    if (!classId) {
+      return NextResponse.json(
+        { error: "classId is required — select the class this assessment setup applies to" },
+        { status: 400 }
+      );
+    }
+
+    const valid = await validateClassCourseAssignment(courseId, classId);
+    if (!valid.ok) {
+      return NextResponse.json({ error: valid.error }, { status: 400 });
+    }
+
     const items = body?.items as
       | { name: string; key: string; weightPercent: number }[]
       | undefined;
@@ -108,10 +155,11 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
     }
 
     await prisma.$transaction([
-      prisma.courseAssessment.deleteMany({ where: { courseId } }),
+      prisma.courseAssessment.deleteMany({ where: { courseId, classId } }),
       prisma.courseAssessment.createMany({
         data: normalized.map((n) => ({
           courseId,
+          classId,
           name: n.name,
           key: n.key,
           weightPercent: n.weightPercent,
@@ -121,11 +169,13 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
     ]);
 
     const assessments = await prisma.courseAssessment.findMany({
-      where: { courseId },
+      where: { courseId, classId },
       orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     });
 
-    return NextResponse.json({ courseId, assessments });
+    const classes = await listClassesForCourse(courseId);
+
+    return NextResponse.json({ courseId, classId, classes, assessments });
   } catch (e) {
     console.error("Put course assessments error:", e);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

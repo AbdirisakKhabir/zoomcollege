@@ -1,44 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { getAuthUser } from "@/lib/auth";
+import {
+  applyDepartmentScope,
+  assertDepartmentAccess,
+  departmentScopeForbiddenResponse,
+  getDepartmentScope,
+  loadAuthContext,
+  parseDepartmentIdParam,
+} from "@/lib/department-access";
 import { prisma } from "@/lib/prisma";
 import { parsePaginationParams } from "@/lib/pagination";
-import { isValidSemester } from "@/lib/semesters";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const { paginate, page, pageSize, skip } = parsePaginationParams(searchParams);
     const q = searchParams.get("q")?.trim();
-    const departmentId = searchParams.get("departmentId");
-    const semester = searchParams.get("semester");
     const where: Prisma.ClassWhereInput = {};
+    const scope = getDepartmentScope(
+      ctx,
+      parseDepartmentIdParam(searchParams.get("departmentId"))
+    );
+    if (scope.kind === "none") return departmentScopeForbiddenResponse();
+    applyDepartmentScope(where, scope);
     if (q) {
       where.OR = [
         { name: { contains: q } },
-        { semester: { contains: q } },
         { room: { contains: q } },
         { department: { name: { contains: q } } },
       ];
-    }
-    if (departmentId && departmentId !== "all") {
-      const id = Number(departmentId);
-      if (Number.isInteger(id) && id > 0) where.departmentId = id;
-    }
-    if (semester && semester !== "all") {
-      where.semester = semester;
     }
 
     const include = {
       department: { select: { id: true, name: true, code: true } },
     } as const;
 
-    const orderBy = [{ year: "desc" as const }, { semester: "asc" as const }, { name: "asc" as const }];
+    const orderBy = [{ name: "asc" as const }];
 
     if (paginate) {
       const [items, total] = await Promise.all([
@@ -72,36 +74,29 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await req.json();
-    const { name, departmentId, semester, year, room, schedule, capacity } = body;
+    const { name, departmentId, room, schedule, capacity } = body;
     const parsedDepartmentId = Number(departmentId);
-    const parsedYear = Number(year);
 
-    if (!name || !Number.isInteger(parsedDepartmentId) || !semester || !Number.isInteger(parsedYear)) {
+    if (!name || !Number.isInteger(parsedDepartmentId)) {
       return NextResponse.json(
-        { error: "Name, departmentId, semester, and year are required" },
+        { error: "Name and departmentId are required" },
         { status: 400 }
       );
     }
 
-    if (!(await isValidSemester(semester))) {
-      return NextResponse.json(
-        { error: "Invalid semester. Use a semester from the Semesters settings." },
-        { status: 400 }
-      );
-    }
+    const deptDenied = assertDepartmentAccess(ctx, parsedDepartmentId);
+    if (deptDenied) return deptDenied;
 
     const cls = await prisma.class.create({
       data: {
         name: String(name).trim(),
         departmentId: parsedDepartmentId,
-        semester: String(semester).trim(),
-        year: parsedYear,
         room: room || null,
         schedule: schedule || null,
         capacity: Number(capacity) > 0 ? Number(capacity) : 40,
@@ -120,7 +115,7 @@ export async function POST(req: NextRequest) {
       (e as { code: string }).code === "P2002"
     ) {
       return NextResponse.json(
-        { error: "A class with this name in the same semester/year already exists" },
+        { error: "A class with this name already exists in this department" },
         { status: 400 }
       );
     }

@@ -3,7 +3,6 @@
 import React from "react";
 import Button from "@/components/ui/button/Button";
 import { TRANSCRIPT_BRAND, GRADING_SYSTEM_LEGEND } from "@/lib/transcript-brand";
-import { parseYearSemesterKey } from "@/lib/semester-sort";
 
 /** Official banner (uploaded registrar header) */
 const TRANSCRIPT_HEADER_IMAGE = "/logo/transcript-header.png";
@@ -11,7 +10,7 @@ const TRANSCRIPT_HEADER_IMAGE = "/logo/transcript-header.png";
 /** Body font: Cambria (+1px vs prior compact sizing) */
 const transcriptFont = "font-['Cambria',Georgia,'Times_New_Roman',serif]";
 
-/** Compact table cells so a full 9-semester transcript fits ~2 printed pages */
+/** Compact table cells so a full transcript fits ~2 printed pages */
 const cellBorder =
   "border border-black px-1 py-0.5 text-[11px] leading-tight print:text-[10px] print:leading-tight";
 const tableHeaderCell = `${cellBorder} bg-white font-bold text-black`;
@@ -19,13 +18,13 @@ const tableHeaderCell = `${cellBorder} bg-white font-bold text-black`;
 /** Course / marks table column headers (brand maroon) — body cells stay plain white; no low-mark fill */
 const courseGradeTableHeaderCell = `${cellBorder} border-black bg-[#a53851] font-bold text-white print:bg-[#a53851] print:text-white`;
 
-/** Academic year / semester line above each course table */
-const SEMESTER_HEAD_BG = "#e8e8e8";
+/** Academic year line above each course table */
+const YEAR_HEAD_BG = "#e8e8e8";
 
-const semesterHeadingLineClass = `transcript-semester-title-row border-b border-black px-2 py-1.5 text-left text-[12px] font-bold text-black underline print:border-black print:py-1 print:text-[11px]`;
+const yearHeadingLineClass = `transcript-year-title-row border-b border-black px-2 py-1.5 text-left text-[12px] font-bold text-black underline print:border-black print:py-1 print:text-[11px]`;
 
-/** Fixed % widths so every semester table lines up (Course Code | Title | CrHrs | Marks | Grade | GPA) */
-const SEMESTER_GRADES_COL_PCTS = ["16%", "36%", "8%", "14%", "10%", "16%"] as const;
+/** Fixed % widths so every year table lines up (Course Code | Title | CrHrs | Marks | Grade | GPA) */
+const YEAR_GRADES_COL_PCTS = ["16%", "36%", "8%", "14%", "10%", "16%"] as const;
 
 /** Student info block (top left): more breathing room per row */
 const infoCell =
@@ -33,7 +32,6 @@ const infoCell =
 
 type ExamRecord = {
   id: number;
-  semester: string;
   year: number;
   totalMarks: number;
   grade: string | null;
@@ -51,12 +49,10 @@ type StudentInfo = {
     id: number;
     name: string;
     code: string;
-    faculty?: { id: number; name: string; code: string };
   };
 };
 
-type SemesterGPA = {
-  semester: string;
+type YearGPA = {
   year: number;
   gpa: number;
   totalCredits: number;
@@ -66,54 +62,26 @@ type SemesterGPA = {
 
 type TranscriptDocumentProps = {
   student: StudentInfo;
-  recordsBySemester: Record<string, ExamRecord[]>;
-  semesterKeys: string[];
-  semGpaMap: Record<string, SemesterGPA>;
+  recordsByYear: Record<string, ExamRecord[]>;
+  yearKeys: string[];
+  yearGpaMap: Record<string, YearGPA>;
   cumulativeGPA: number;
   totalCredits: number;
-  semOrder?: Record<string, number>;
   /** Show a Print Transcript button above the document (hidden when printing) */
   showPrintButton?: boolean;
 };
 
-const SEMESTER_NUMBER_WORDS = [
-  "",
-  "One",
-  "Two",
-  "Three",
-  "Four",
-  "Five",
-  "Six",
-  "Seven",
-  "Eight",
-  "Nine",
-  "Ten",
-] as const;
-
-/** e.g. "Semester 3" / "Semester Three" from DB label */
-function formatSemesterWords(semesterLabel: string): string {
-  const s = String(semesterLabel).trim();
-  const m = /semester\s*(\d+)/i.exec(s);
-  if (m) {
-    const n = Number(m[1]);
-    const w = SEMESTER_NUMBER_WORDS[n];
-    if (w) return `Semester ${w}`;
-    return `Semester ${m[1]}`;
-  }
-  return s.length > 0 ? s : "—";
+/** e.g. "Academic Year: 2022-2023" */
+function formatAcademicYearLine(yearEnd: number): string {
+  return `Academic Year: ${yearEnd - 1}-${yearEnd}`;
 }
 
-/** "Academic Year: 2022-2023. Semester Three" */
-function formatAcademicYearSemesterLine(yearStart: number, yearEnd: number, semesterLabel: string): string {
-  return `Academic Year: ${yearStart}-${yearEnd}. ${formatSemesterWords(semesterLabel)}`;
-}
-
-/** Earliest calendar year appearing on the transcript (from graded semesters). */
-function earliestTranscriptYear(semesterKeys: string[]): number | null {
+/** Earliest calendar year appearing on the transcript (from graded years). */
+function earliestTranscriptYear(yearKeys: string[]): number | null {
   let min = Infinity;
-  for (const k of semesterKeys) {
-    const { year } = parseYearSemesterKey(k);
-    if (year > 0 && year < min) min = year;
+  for (const k of yearKeys) {
+    const y = Number(k);
+    if (y > 0 && y < min) min = y;
   }
   return min === Infinity ? null : min;
 }
@@ -129,10 +97,10 @@ function yearFromAdmissionDate(d: string | Date): number | null {
 }
 
 function formatEntryYear(
-  semesterKeys: string[],
+  yearKeys: string[],
   admissionDate: string | Date | undefined
 ): string {
-  const fromGrades = earliestTranscriptYear(semesterKeys);
+  const fromGrades = earliestTranscriptYear(yearKeys);
   if (fromGrades != null) return String(fromGrades);
   if (admissionDate) {
     const y = yearFromAdmissionDate(admissionDate);
@@ -143,21 +111,21 @@ function formatEntryYear(
 
 export function TranscriptDocument({
   student,
-  recordsBySemester,
-  semesterKeys,
-  semGpaMap,
+  recordsByYear,
+  yearKeys,
+  yearGpaMap,
   cumulativeGPA,
   totalCredits,
   showPrintButton = false,
 }: TranscriptDocumentProps) {
-  const college = student.department?.faculty?.name ?? "—";
+  const college = TRANSCRIPT_BRAND.universityName;
   const department = student.department?.name ?? "—";
   const studentName = `${student.firstName} ${student.lastName}`;
   const entryYear =
     typeof TRANSCRIPT_BRAND.entryYearDisplay === "string" &&
     TRANSCRIPT_BRAND.entryYearDisplay.trim() !== ""
       ? TRANSCRIPT_BRAND.entryYearDisplay.trim()
-      : formatEntryYear(semesterKeys, student.admissionDate);
+      : formatEntryYear(yearKeys, student.admissionDate);
 
   const legendHeading = `${TRANSCRIPT_BRAND.gradingSystemTitle.endsWith(":") ? TRANSCRIPT_BRAND.gradingSystemTitle.slice(0, -1) : TRANSCRIPT_BRAND.gradingSystemTitle}:`;
 
@@ -179,7 +147,7 @@ export function TranscriptDocument({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={TRANSCRIPT_HEADER_IMAGE}
-            alt="Era Pre-University — Office of the Registrar"
+            alt={`${TRANSCRIPT_BRAND.universityName} — Office of the Registrar`}
             className="h-auto w-full max-h-[160px] object-contain object-left print:max-h-[120px]"
           />
           <div className="my-2 border-t border-black print:my-1" />
@@ -248,55 +216,53 @@ export function TranscriptDocument({
           </table>
         </div>
 
-        {/* Semesters */}
-        {semesterKeys.map((key, keyIdx) => {
-          const { year: yearEndNum, semester: semesterLabel } = parseYearSemesterKey(key);
-          const records = recordsBySemester[key] || [];
-          const semGpa = semGpaMap[key];
-          const prevKeys = semesterKeys.slice(0, keyIdx);
+        {/* Academic years */}
+        {yearKeys.map((key, keyIdx) => {
+          const yearEndNum = Number(key);
+          const records = recordsByYear[key] || [];
+          const yearGpa = yearGpaMap[key];
+          const prevKeys = yearKeys.slice(0, keyIdx);
           let cumCredits = 0;
           let cumHpts = 0;
           for (const pk of prevKeys) {
-            const pr = recordsBySemester[pk] || [];
+            const pr = recordsByYear[pk] || [];
             for (const r of pr) {
               cumCredits += r.course.creditHours;
               cumHpts += r.course.creditHours * (r.gradePoints ?? 0);
             }
           }
-          const thisSemCredits = records.reduce((s, r) => s + r.course.creditHours, 0);
-          const thisSemHpts = records.reduce(
+          const thisYearCredits = records.reduce((s, r) => s + r.course.creditHours, 0);
+          const thisYearHpts = records.reduce(
             (s, r) => s + r.course.creditHours * (r.gradePoints ?? 0),
             0
           );
-          const totalCreditsSoFar = cumCredits + thisSemCredits;
-          const totalHptsSoFar = cumHpts + thisSemHpts;
+          const totalCreditsSoFar = cumCredits + thisYearCredits;
+          const totalHptsSoFar = cumHpts + thisYearHpts;
           const cgpa =
             totalCreditsSoFar > 0
               ? Math.round((totalHptsSoFar / totalCreditsSoFar) * 100) / 100
               : 0;
 
-          const yearEnd = yearEndNum;
-          const yearStart = yearEnd - 1;
-          const academicSemesterLine = formatAcademicYearSemesterLine(yearStart, yearEnd, semesterLabel);
+          const academicYearLine = formatAcademicYearLine(yearEndNum);
 
           return (
             <div
               key={key}
-              className="transcript-semester-block mb-2 last:mb-1 print:mb-1"
+              className="transcript-year-block mb-2 last:mb-1 print:mb-1"
             >
-              <div className="transcript-semester-table-wrap border border-black print:border-black">
+              <div className="transcript-year-table-wrap border border-black print:border-black">
                 <div
-                  className={semesterHeadingLineClass}
-                  style={{ backgroundColor: SEMESTER_HEAD_BG }}
+                  className={yearHeadingLineClass}
+                  style={{ backgroundColor: YEAR_HEAD_BG }}
                 >
-                  {academicSemesterLine}
+                  {academicYearLine}
                 </div>
                 <table
-                  className="transcript-table transcript-semester-grades-table mt-0 w-full table-fixed border-0 text-[11px] print:text-[10px]"
+                  className="transcript-table transcript-year-grades-table mt-0 w-full table-fixed border-0 text-[11px] print:text-[10px]"
                   style={{ borderCollapse: "collapse", tableLayout: "fixed", width: "100%" }}
                 >
                   <colgroup>
-                    {SEMESTER_GRADES_COL_PCTS.map((w, i) => (
+                    {YEAR_GRADES_COL_PCTS.map((w, i) => (
                       <col key={i} style={{ width: w }} />
                     ))}
                   </colgroup>
@@ -315,11 +281,11 @@ export function TranscriptDocument({
                     return (
                       <tr key={r.id} className="transcript-row bg-white">
                         <td
-                          className={`${cellBorder} transcript-semester-cell-code text-left font-mono font-semibold wrap-break-word`}
+                          className={`${cellBorder} transcript-year-cell-code text-left font-mono font-semibold wrap-break-word`}
                         >
                           {r.course.code}
                         </td>
-                        <td className={`${cellBorder} transcript-semester-cell-title text-left wrap-break-word`}>
+                        <td className={`${cellBorder} transcript-year-cell-title text-left wrap-break-word`}>
                           {r.course.name}
                         </td>
                         <td className={`${cellBorder} text-center`}>{r.course.creditHours}</td>
@@ -341,7 +307,7 @@ export function TranscriptDocument({
                     <td colSpan={2} className={`${cellBorder} font-semibold`}>
                       Total
                     </td>
-                    <td className={`${cellBorder} text-center font-bold`}>{thisSemCredits}</td>
+                    <td className={`${cellBorder} text-center font-bold`}>{thisYearCredits}</td>
                     <td className={cellBorder} />
                     <td className={cellBorder} />
                     <td className={cellBorder} />
@@ -350,9 +316,9 @@ export function TranscriptDocument({
               </table>
               </div>
 
-              <div className="transcript-semester-gpa mt-0.5 flex flex-wrap items-baseline justify-end gap-x-4 gap-y-0 text-[11px] font-semibold print:text-[10px]">
+              <div className="transcript-year-gpa mt-0.5 flex flex-wrap items-baseline justify-end gap-x-4 gap-y-0 text-[11px] font-semibold print:text-[10px]">
                 <span>
-                  GPA: <span className="font-bold">{semGpa?.gpa.toFixed(2) ?? "0.00"}</span>
+                  GPA: <span className="font-bold">{yearGpa?.gpa.toFixed(2) ?? "0.00"}</span>
                 </span>
                 {keyIdx > 0 && (
                   <span>

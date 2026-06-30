@@ -5,13 +5,12 @@ import {
   computeAttendanceMarks,
   computeAttendancePercent,
 } from "@/lib/attendance";
-import { getSemesterDateRange } from "@/lib/semester-dates";
+import { getAcademicYearDateRange } from "@/lib/academic-year-dates";
+import { resolveAttendanceSessionIds } from "@/lib/exam-attendance";
 
 /**
- * GET /api/reports/attendance-by-student?classId=X&semester=Y&year=Z
- * Returns per-student attendance for a class: Present, Absent, Late, Excused,
- * attendance %, and attendance marks (0-10) for exam integration.
- * If semester and year are omitted, uses the class's semester/year.
+ * GET /api/reports/attendance-by-student
+ * Supports filters: departmentId, classId, courseId, studentId, dateFrom, dateTo, year.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -21,46 +20,92 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
+    const departmentId = searchParams.get("departmentId");
     const classId = searchParams.get("classId");
-    const semesterParam = searchParams.get("semester");
+    const courseId = searchParams.get("courseId");
+    const studentId = searchParams.get("studentId");
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
     const yearParam = searchParams.get("year");
 
-    if (!classId) {
-      return NextResponse.json(
-        { error: "classId is required for attendance-by-student report" },
-        { status: 400 }
+    const parsedDepartmentId =
+      departmentId && Number.isInteger(Number(departmentId))
+        ? Number(departmentId)
+        : null;
+    const parsedClassId =
+      classId && Number.isInteger(Number(classId)) ? Number(classId) : null;
+    const parsedCourseId =
+      courseId && Number.isInteger(Number(courseId)) ? Number(courseId) : null;
+    const parsedStudentId =
+      studentId && Number.isInteger(Number(studentId)) ? Number(studentId) : null;
+
+    let cls: {
+      id: number;
+      name: string;
+      department: { id: number; name: string; code: string };
+    } | null = null;
+
+    if (parsedClassId) {
+      const classRow = await prisma.class.findUnique({
+        where: { id: parsedClassId },
+        include: {
+          department: { select: { id: true, name: true, code: true } },
+        },
+      });
+      if (!classRow) {
+        return NextResponse.json({ error: "Class not found" }, { status: 404 });
+      }
+      cls = classRow;
+    }
+
+    const year = yearParam
+      ? Number(yearParam)
+      : new Date().getFullYear();
+
+    let sessionIds: number[];
+
+    if (parsedClassId && parsedCourseId) {
+      sessionIds = await resolveAttendanceSessionIds(
+        parsedClassId,
+        parsedCourseId
       );
+    } else {
+      const sessionDateWhere: { gte?: Date; lte?: Date } = {};
+      if (dateFrom || dateTo) {
+        if (dateFrom) sessionDateWhere.gte = new Date(dateFrom);
+        if (dateTo) sessionDateWhere.lte = new Date(dateTo);
+      } else if (Number.isInteger(year)) {
+        const { start, end } = getAcademicYearDateRange(year);
+        sessionDateWhere.gte = start;
+        sessionDateWhere.lte = end;
+      }
+
+      const sessionsOrdered = await prisma.attendanceSession.findMany({
+        where: {
+          ...(parsedClassId ? { classId: parsedClassId } : {}),
+          ...(parsedCourseId ? { courseId: parsedCourseId } : {}),
+          ...(parsedDepartmentId
+            ? { class: { departmentId: parsedDepartmentId } }
+            : {}),
+          ...(Object.keys(sessionDateWhere).length > 0
+            ? { date: sessionDateWhere }
+            : {}),
+        },
+        orderBy: [{ date: "asc" }, { shift: "asc" }],
+        select: { id: true },
+      });
+      sessionIds = sessionsOrdered.map((s) => s.id);
     }
 
-    const cls = await prisma.class.findUnique({
-      where: { id: Number(classId) },
-      include: {
-        department: { select: { id: true, name: true, code: true } },
-      },
-    });
-
-    if (!cls) {
-      return NextResponse.json({ error: "Class not found" }, { status: 404 });
-    }
-
-    const semester = semesterParam ?? cls.semester;
-    const year = yearParam ? Number(yearParam) : cls.year;
-    const { start, end } = getSemesterDateRange(semester, year);
-
-    // Get attendance sessions for this class within the semester date range
-    const sessions = await prisma.attendanceSession.findMany({
-      where: {
-        classId: Number(classId),
-        date: { gte: start, lte: end },
-      },
-      select: { id: true },
-    });
-    const sessionIds = sessions.map((s) => s.id);
     const totalSessions = sessionIds.length;
 
-    // Get all students in this class (from Student.classId)
     const students = await prisma.student.findMany({
-      where: { classId: Number(classId), status: "Admitted" },
+      where: {
+        status: "Admitted",
+        ...(parsedStudentId ? { id: parsedStudentId } : {}),
+        ...(parsedClassId ? { classId: parsedClassId } : {}),
+        ...(parsedDepartmentId ? { departmentId: parsedDepartmentId } : {}),
+      },
       select: {
         id: true,
         studentId: true,
@@ -73,21 +118,23 @@ export async function GET(req: NextRequest) {
     if (students.length === 0) {
       return NextResponse.json({
         class: cls,
+        year,
         students: [],
         totalSessions: 0,
       });
     }
 
-    // Get all attendance records for these students in these sessions
-    const records = await prisma.attendanceRecord.findMany({
-      where: {
-        sessionId: { in: sessionIds },
-        studentId: { in: students.map((s) => s.id) },
-      },
-      select: { sessionId: true, studentId: true, status: true },
-    });
+    const records =
+      sessionIds.length > 0
+        ? await prisma.attendanceRecord.findMany({
+            where: {
+              sessionId: { in: sessionIds },
+              studentId: { in: students.map((s) => s.id) },
+            },
+            select: { sessionId: true, studentId: true, status: true },
+          })
+        : [];
 
-    // Aggregate by student
     const byStudent = new Map<
       number,
       { present: number; absent: number; late: number; excused: number }
@@ -120,6 +167,7 @@ export async function GET(req: NextRequest) {
         presentPlusExcused,
         totalSessions
       );
+
       return {
         studentId: s.id,
         studentIdStr: s.studentId,
@@ -132,12 +180,12 @@ export async function GET(req: NextRequest) {
         totalSessions,
         attendancePercent,
         attendanceMarks,
+        rowDanger: attendancePercent < 35,
       };
     });
 
     return NextResponse.json({
       class: cls,
-      semester,
       year,
       students: result,
       totalSessions,

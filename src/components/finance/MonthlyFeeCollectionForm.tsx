@@ -1,114 +1,92 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
+import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import { DateInput } from "@/components/form/DateInput";
-import { authFetch } from "@/lib/api";
-import { TRANSCRIPT_BRAND } from "@/lib/transcript-brand";
+import { Modal } from "@/components/ui/modal";
 import {
-  DollarLineIcon,
-  UserCircleIcon,
-  CheckCircleIcon,
-  CalenderIcon,
-  AlertIcon,
-} from "@/icons";
+  Table,
+  TableBody,
+  TableCell,
+  TableHeader,
+  TablePagination,
+  TableRow,
+} from "@/components/ui/table";
+import { globalRowIndex, usePagination } from "@/hooks/usePagination";
+import { authFetch } from "@/lib/api";
+import {
+  openMonthlyFeeReceipt,
+  type MonthlyFeeReceipt,
+} from "@/lib/monthly-fee-receipt";
+import {
+  AlertCircle,
+  CheckCircle2,
+  DollarSign,
+  List,
+} from "lucide-react";
 
-type Bank = { id: number; name: string; code: string; balance: number; accountNumber?: string | null };
+type FinancePaymentRow =
+  | {
+      kind: "tuition";
+      id: number;
+      amount: number;
+            year: number;
+      paymentMethod: string;
+      paymentDate: string;
+      bank: { id: number; name: string; code: string } | null;
+    }
+  | {
+      kind: "monthly";
+      id: number;
+      amount: number;
+      month: number;
+      calendarYear: number;
+      paymentMethod: string;
+      paymentDate: string;
+      bank: { id: number; name: string; code: string } | null;
+    };
 
-type SearchStudent = {
+type Bank = {
+  id: number;
+  name: string;
+  code: string;
+  balance: number;
+  accountNumber?: string | null;
+};
+
+type ClassOption = {
+  id: number;
+  name: string;
+    year: number;
+  department: { code: string; name: string };
+};
+
+type BalanceListStudent = {
   id: number;
   studentId: string;
   firstName: string;
   lastName: string;
   phone: string | null;
+  gender: string | null;
   email: string | null;
+  status: string;
   balance: number;
-  department: { name: string; code: string; tuitionFee: number | null };
+  department: { name: string; code: string; registrationFee: number | null };
+  class: { id: number; name: string } | null;
+  monthlyFee: number;
+  paidForMonth: boolean;
+  monthPaymentAmount: number;
+  invoicedForMonth: boolean;
+  monthInvoiceAmount: number;
 };
 
-type ApiReceipt = {
-  batchId: string;
-  paymentDate: string;
-  year: number;
-  months: number[];
-  amountPerMonth: number;
-  totalAmount: number;
-  student: { studentId: string; firstName: string; lastName: string };
-  bank: { code: string; name: string };
-  newBalance: number;
+const STATUS_COLOR: Record<string, "warning" | "success" | "error" | "info" | "primary"> = {
+  Pending: "warning",
+  Admitted: "success",
+  Rejected: "error",
+  Graduated: "info",
 };
-
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function openPrintReceipt(data: ApiReceipt) {
-  const w = window.open("", "_blank");
-  if (!w) return;
-  const monthsLabel = data.months
-    .map((m) => new Date(2000, m - 1, 1).toLocaleString("en-US", { month: "long" }))
-    .join(", ");
-  const paid = new Date(data.paymentDate).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const uni = escHtml(TRANSCRIPT_BRAND.universityName);
-  const contact = escHtml(TRANSCRIPT_BRAND.contactPhone);
-  const st = data.student;
-  const bk = data.bank;
-  w.document.write(`<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>Fee receipt — ${escHtml(st.studentId)}</title>
-<style>
-  @page { margin: 16mm; }
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #111; line-height: 1.45; }
-  .wrap { max-width: 560px; margin: 0 auto; }
-  .head { text-align: center; padding-bottom: 16px; border-bottom: 3px solid #465fff; margin-bottom: 20px; }
-  .head h1 { font-size: 1.15rem; margin: 0 0 4px; letter-spacing: 0.02em; color: #1e1b4b; }
-  .head p { margin: 0; font-size: 0.8rem; color: #64748b; }
-  .head .contact { margin: 10px 0 0; font-size: 0.85rem; font-weight: 600; color: #334155; }
-  .badge { display: inline-block; background: #eef2ff; color: #3730a3; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; padding: 4px 10px; border-radius: 999px; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin: 16px 0; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
-  th { background: #f8fafc; font-weight: 600; color: #475569; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
-  .total { font-size: 1.25rem; font-weight: 800; color: #1e293b; text-align: right; padding-top: 12px; border-top: 2px solid #cbd5e1; }
-  .meta { font-size: 0.85rem; color: #475569; margin-top: 20px; padding: 14px 16px; background: #f8fafc; border-radius: 12px; }
-  .meta div { margin: 4px 0; }
-  .foot { margin-top: 28px; padding-top: 16px; border-top: 1px dashed #cbd5e1; font-size: 0.75rem; color: #94a3b8; text-align: center; }
-</style></head><body>
-<div class="wrap">
-  <div class="head">
-    <div class="badge">MONTHLY FEE RECEIPT</div>
-    <h1>${uni}</h1>
-    <p>Official payment acknowledgment</p>
-    <p class="contact">Contact: ${contact}</p>
-  </div>
-  <table>
-    <tbody>
-      <tr><th>Student</th><td>${escHtml(st.firstName)} ${escHtml(st.lastName)}</td></tr>
-      <tr><th>Student ID</th><td style="font-family: ui-monospace, monospace;">${escHtml(st.studentId)}</td></tr>
-      <tr><th>Period</th><td>${escHtml(monthsLabel)} ${data.year}</td></tr>
-      <tr><th>Amount / month</th><td>$${data.amountPerMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr>
-      <tr><th>Months paid</th><td>${data.months.length}</td></tr>
-      <tr><th>Bank</th><td>${escHtml(bk.code)} — ${escHtml(bk.name)}</td></tr>
-      <tr><th>Date recorded</th><td>${escHtml(paid)}</td></tr>
-    </tbody>
-  </table>
-  <div class="total">Total received: $${data.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-  <div class="meta">
-    <div><strong>New balance due:</strong> $${data.newBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-    <div><strong>Batch ID:</strong> <span style="font-family: ui-monospace, monospace; font-size: 0.8rem;">${escHtml(data.batchId)}</span></div>
-  </div>
-  <div class="foot">Questions? ${contact} · This document was generated by the university management system. Keep for your records.</div>
-</div>
-<script>window.onload = function() { window.print(); };</script>
-</body></html>`);
-  w.document.close();
-}
 
 type Props = {
   canRecord: boolean;
@@ -116,94 +94,236 @@ type Props = {
   onBanksRefresh?: () => void;
 };
 
-export default function MonthlyFeeCollectionForm({ canRecord, banks, onBanksRefresh }: Props) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchStudent[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<SearchStudent | null>(null);
+function monthName(m: number): string {
+  return new Date(2000, m - 1, 1).toLocaleString("en-US", { month: "long" });
+}
+
+function paymentPeriodLabel(p: FinancePaymentRow): string {
+  if (p.kind === "tuition") return "Registration";
+  return `${monthName(p.month)} ${p.calendarYear}`;
+}
+
+const PAYMENT_METHODS = [
+  { value: "cash_on_hand", label: "Cash on Hand" },
+  { value: "bank_receipt", label: "Account Receipt" },
+  { value: "electronic", label: "Electronic" },
+] as const;
+
+const inputClass =
+  "h-11 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-sm outline-none transition-all placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/15 dark:border-gray-600 dark:bg-gray-900/80 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:ring-brand-500/20";
+const selectClass =
+  "h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-sm outline-none transition-all focus:border-brand-400 focus:ring-2 focus:ring-brand-500/15 dark:border-gray-600 dark:bg-gray-900/80 dark:text-white dark:focus:border-brand-500 dark:focus:ring-brand-500/20";
+
+const modalLabelClass =
+  "mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400";
+const modalInputClass =
+  "h-9 w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/15 dark:border-gray-600 dark:bg-gray-900/80 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:ring-brand-500/20";
+const modalSelectClass =
+  "h-9 w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-800 outline-none transition-all focus:border-brand-400 focus:ring-2 focus:ring-brand-500/15 dark:border-gray-600 dark:bg-gray-900/80 dark:text-white dark:focus:border-brand-500 dark:focus:ring-brand-500/20";
+
+export default function MonthlyFeeCollectionForm({
+  canRecord,
+  banks,
+  onBanksRefresh,
+}: Props) {
   const now = new Date();
-  const defaultMonth = String(now.getMonth() + 1);
+  const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
+  const [filterClassId, setFilterClassId] = useState("all");
+  const [filterDate, setFilterDate] = useState(now.toISOString().slice(0, 10));
+  const [balanceList, setBalanceList] = useState<BalanceListStudent[]>([]);
+  const [balanceSummary, setBalanceSummary] = useState({
+    count: 0,
+    totalBalance: 0,
+    unpaidForMonth: 0,
+  });
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceYear, setBalanceYear] = useState(now.getFullYear());
+  const [balanceMonth, setBalanceMonth] = useState(now.getMonth() + 1);
+
+  const [paymentStudent, setPaymentStudent] = useState<BalanceListStudent | null>(null);
+  const [historyStudent, setHistoryStudent] = useState<BalanceListStudent | null>(null);
+  const [historyPayments, setHistoryPayments] = useState<FinancePaymentRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const [year, setYear] = useState(String(now.getFullYear()));
-  const [monthFrom, setMonthFrom] = useState(defaultMonth);
-  const [monthTo, setMonthTo] = useState(defaultMonth);
-  const [amountPerMonth, setAmountPerMonth] = useState("");
-  const [mfBankId, setMfBankId] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
-  const [note, setNote] = useState("");
+  const [paymentMonth, setPaymentMonth] = useState(String(now.getMonth() + 1));
+  const [feeBeforeDiscount, setFeeBeforeDiscount] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash_on_hand");
+  const [receiptNumber, setReceiptNumber] = useState("");
+  const [transactionId, setTransactionId] = useState("");
+  const [paymentDate, setPaymentDate] = useState(now.toISOString().slice(0, 10));
+  const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [lastReceipt, setLastReceipt] = useState<ApiReceipt | null>(null);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [lastReceipt, setLastReceipt] = useState<MonthlyFeeReceipt | null>(null);
 
-  useEffect(() => {
-    if (banks.length > 0 && !mfBankId) setMfBankId(String(banks[0].id));
-  }, [banks, mfBankId]);
-
-  useEffect(() => {
-    const q = searchQuery.trim();
-    if (q.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(async () => {
-      setSearchLoading(true);
-      try {
-        const res = await authFetch(`/api/students/search?q=${encodeURIComponent(q)}&limit=15`);
-        if (res.ok) setSearchResults(await res.json());
-        else setSearchResults([]);
-      } catch {
-        setSearchResults([]);
+  const loadBalanceList = async () => {
+    setBalanceLoading(true);
+    try {
+      const params = new URLSearchParams({ date: filterDate });
+      if (filterClassId && filterClassId !== "all") {
+        params.set("classId", filterClassId);
       }
-      setSearchLoading(false);
-    }, 300);
-    return () => {
-      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    };
-  }, [searchQuery]);
-
-  const monthsSorted = (() => {
-    const a = Number(monthFrom);
-    const b = Number(monthTo);
-    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 1 || a > 12 || b < 1 || b > 12) return [];
-    const lo = Math.min(a, b);
-    const hi = Math.max(a, b);
-    return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
-  })();
-
-  const selectFullYear = () => {
-    setMonthFrom("1");
-    setMonthTo("12");
+      const res = await authFetch(`/api/finance/monthly-payments?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBalanceList(data.students ?? []);
+        setBalanceSummary(
+          data.summary ?? { count: 0, totalBalance: 0, unpaidForMonth: 0 }
+        );
+        setBalanceYear(data.year ?? now.getFullYear());
+        setBalanceMonth(data.month ?? now.getMonth() + 1);
+      } else {
+        setBalanceList([]);
+        setBalanceSummary({ count: 0, totalBalance: 0, unpaidForMonth: 0 });
+      }
+    } catch {
+      setBalanceList([]);
+      setBalanceSummary({ count: 0, totalBalance: 0, unpaidForMonth: 0 });
+    }
+    setBalanceLoading(false);
   };
-  const resetToThisMonth = () => {
-    const d = new Date();
-    setMonthFrom(String(d.getMonth() + 1));
-    setMonthTo(String(d.getMonth() + 1));
-    setYear(String(d.getFullYear()));
+
+  useEffect(() => {
+    authFetch("/api/classes").then((r) => {
+      if (r.ok) r.json().then((d: ClassOption[]) => setClassOptions(d));
+    });
+  }, []);
+
+  useEffect(() => {
+    void loadBalanceList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterClassId, filterDate]);
+
+  const {
+    paginatedItems: paginatedBalanceRows,
+    page: balancePage,
+    setPage: setBalancePage,
+    pageSize: balancePageSize,
+    setPageSize: setBalancePageSize,
+    totalPages: balanceTotalPages,
+    total: balanceTotal,
+    from: balanceFrom,
+    to: balanceTo,
+  } = usePagination(balanceList, [filterClassId, filterDate, balanceList]);
+
+  const openPaymentModal = (s: BalanceListStudent) => {
+    setPaymentStudent(s);
+    setError("");
+    setLastReceipt(null);
+    setYear(String(balanceYear));
+    setPaymentMonth(String(balanceMonth));
+    setDiscountAmount("");
+    const amountDue = s.balance > 0 ? s.balance : 0;
+    setFeeBeforeDiscount(amountDue);
+    setDepositAmount(amountDue > 0 ? String(amountDue) : "");
+    setPaymentMethod("cash_on_hand");
+    setReceiptNumber("");
+    setTransactionId("");
+    setPaymentDate(now.toISOString().slice(0, 10));
+    setDescription("Received payment");
+  };
+
+  const closePaymentModal = () => {
+    setPaymentStudent(null);
+    setError("");
+    setLastReceipt(null);
+  };
+
+  const openHistoryModal = async (s: BalanceListStudent) => {
+    setHistoryStudent(s);
+    setHistoryPayments([]);
+    setHistoryLoading(true);
+    try {
+      const res = await authFetch(
+        `/api/finance/payments?studentId=${encodeURIComponent(s.studentId)}&pageSize=100`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setHistoryPayments(data.items ?? []);
+      }
+    } catch {
+      setHistoryPayments([]);
+    }
+    setHistoryLoading(false);
+  };
+
+  const closeHistoryModal = () => {
+    setHistoryStudent(null);
+    setHistoryPayments([]);
   };
 
   const currentCalendarYear = now.getFullYear();
   const yearOptions = Array.from({ length: 21 }, (_, i) => currentCalendarYear - 8 + i);
-  const amt = Number(amountPerMonth);
-  const total =
-    Number.isFinite(amt) && monthsSorted.length > 0
-      ? Math.round(amt * 100) * monthsSorted.length / 100
-      : 0;
+  const deposit = Number(depositAmount);
+  const discount = discountAmount.trim() === "" ? 0 : Number(discountAmount);
+  const balanceAfterPayment =
+    paymentStudent &&
+    Number.isFinite(deposit) &&
+    deposit >= 0 &&
+    Number.isFinite(discount) &&
+    discount >= 0
+      ? Math.max(0, paymentStudent.balance - deposit - discount)
+      : paymentStudent?.balance ?? 0;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleDiscountChange = (value: string) => {
+    setDiscountAmount(value);
+    const nextDiscount = value.trim() === "" ? 0 : Number(value);
+    if (value.trim() !== "" && (!Number.isFinite(nextDiscount) || nextDiscount < 0)) {
+      return;
+    }
+    const paid = Math.max(
+      0,
+      Math.round((feeBeforeDiscount - nextDiscount) * 100) / 100
+    );
+    setDepositAmount(String(paid));
+  };
+
+  const handleAmountPaidChange = (value: string) => {
+    setDepositAmount(value);
+  };
+
+  const handleCompletePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLastReceipt(null);
-    if (!selectedStudent || !mfBankId) {
-      setError("Select a student and bank.");
+    if (!paymentStudent) {
+      setError("No student selected.");
       return;
     }
-    if (monthsSorted.length === 0) {
-      setError("Select at least one month.");
+    const monthNum = Number(paymentMonth);
+    if (!Number.isInteger(monthNum) || monthNum < 1 || monthNum > 12) {
+      setError("Select a valid month.");
       return;
     }
-    if (!Number.isFinite(amt) || amt <= 0) {
-      setError("Enter a valid amount per month.");
+    if (!Number.isFinite(deposit) || deposit < 0) {
+      setError("Enter a valid amount paid.");
+      return;
+    }
+    if (discountAmount.trim() !== "" && (!Number.isFinite(discount) || discount < 0)) {
+      setError("Enter a valid discount amount.");
+      return;
+    }
+    if (deposit + discount <= 0) {
+      setError("Enter an amount paid and/or discount.");
+      return;
+    }
+    if (discount > feeBeforeDiscount) {
+      setError("Discount cannot exceed the current balance.");
+      return;
+    }
+    if (deposit + discount > feeBeforeDiscount + 0.001) {
+      setError("Amount paid and discount together cannot exceed the current balance.");
+      return;
+    }
+    if (paymentMethod === "bank_receipt" && !receiptNumber.trim()) {
+      setError("Receipt number is required for account receipt payments.");
+      return;
+    }
+    if (paymentMethod === "electronic" && !transactionId.trim()) {
+      setError("Transaction ID is required for electronic payments.");
       return;
     }
     setSubmitting(true);
@@ -212,14 +332,17 @@ export default function MonthlyFeeCollectionForm({ canRecord, banks, onBanksRefr
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          studentId: selectedStudent.studentId,
+          studentId: paymentStudent.studentId,
           year: Number(year),
-          months: monthsSorted,
-          amountPerMonth: amt,
-          bankId: Number(mfBankId),
-          paymentMethod: "cash_on_hand",
+          months: [monthNum],
+          depositAmount: deposit,
+          discountAmount: discount,
+          paymentMethod,
+          receiptNumber: receiptNumber.trim() || undefined,
+          transactionId: transactionId.trim() || undefined,
+          bankId: banks[0]?.id,
           paymentDate: paymentDate || undefined,
-          note: note.trim() || undefined,
+          description: description.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -227,12 +350,10 @@ export default function MonthlyFeeCollectionForm({ canRecord, banks, onBanksRefr
         setError(data.error || "Could not save payment");
         return;
       }
-      setLastReceipt(data as ApiReceipt);
-      setSelectedStudent(null);
-      setSearchQuery("");
-      setNote("");
+      setLastReceipt(data as MonthlyFeeReceipt);
       onBanksRefresh?.();
-      openPrintReceipt(data as ApiReceipt);
+      void loadBalanceList();
+      openMonthlyFeeReceipt(data as MonthlyFeeReceipt);
     } catch {
       setError("Network error");
     } finally {
@@ -240,300 +361,567 @@ export default function MonthlyFeeCollectionForm({ canRecord, banks, onBanksRefr
     }
   };
 
-  const inputClass =
-    "h-11 w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-sm outline-none transition-all placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/15 dark:border-gray-600 dark:bg-gray-900/80 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:ring-brand-500/20";
-  const selectClass =
-    "h-11 w-full appearance-none rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 shadow-sm outline-none transition-all focus:border-brand-400 focus:ring-2 focus:ring-brand-500/15 dark:border-gray-600 dark:bg-gray-900/80 dark:text-white dark:focus:border-brand-500 dark:focus:ring-brand-500/20";
-
-  const initials = selectedStudent
-    ? `${selectedStudent.firstName?.[0] ?? ""}${selectedStudent.lastName?.[0] ?? ""}`.toUpperCase() || "?"
+  const paymentInitials = paymentStudent
+    ? `${paymentStudent.firstName?.[0] ?? ""}${paymentStudent.lastName?.[0] ?? ""}`.toUpperCase() ||
+      "?"
     : "";
 
   return (
-    <div
-      id="collect-monthly-fee"
-      className="min-w-0 scroll-mt-24 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/3"
-    >
-      <div className="relative overflow-hidden border-b border-gray-200 bg-gradient-to-br from-violet-600 via-brand-600 to-indigo-700 px-5 py-6 text-white dark:border-gray-800">
-        <div className="pointer-events-none absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-10 left-1/3 h-32 w-32 rounded-full bg-indigo-400/20 blur-xl" />
-        <div className="relative">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Finance</p>
-          <h2 className="mt-1 flex flex-wrap items-center gap-2 text-xl font-bold tracking-tight">
-            <DollarLineIcon className="h-6 w-6 shrink-0 text-amber-200" />
-            Collect monthly fee
-          </h2>
+    <>
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/3">
+        <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="w-full sm:w-56">
+              <label className="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400">
+                Class
+              </label>
+              <select
+                value={filterClassId}
+                onChange={(e) => setFilterClassId(e.target.value)}
+                className={selectClass}
+              >
+                <option value="all">All classes</option>
+                {classOptions.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.department?.code} — {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-full sm:w-48">
+              <DateInput
+                id="balance-filter-date"
+                label="Billing month"
+                labelClassName="mb-1.5 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                value={filterDate}
+                onChange={setFilterDate}
+                inputClassName={inputClass}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadBalanceList()}
+              disabled={balanceLoading}
+            >
+              {balanceLoading ? "Loading…" : "Refresh"}
+            </Button>
+          </div>
+          {!balanceLoading && balanceSummary.count > 0 && (
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              {balanceSummary.count} student{balanceSummary.count === 1 ? "" : "s"} · Total
+              balance{" "}
+              <strong className="text-gray-800 dark:text-white/90">
+                $
+                {balanceSummary.totalBalance.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </strong>
+              {" · "}
+              {balanceSummary.unpaidForMonth} unpaid for{" "}
+              {new Date(balanceYear, balanceMonth - 1, 1).toLocaleString("en-US", {
+                month: "long",
+                year: "numeric",
+              })}
+            </p>
+          )}
         </div>
+
+        {balanceLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          </div>
+        ) : balanceList.length === 0 ? (
+          <p className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+            No students with an outstanding balance match these filters.
+          </p>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/50">
+                  <TableRow>
+                    <TableCell
+                      isHeader
+                      className="w-10 px-3 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      #
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Name
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      ID
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Phone
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Gender
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Department
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Class
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-left text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Status
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="px-3 py-3 text-right text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Balance
+                    </TableCell>
+                    <TableCell
+                      isHeader
+                      className="min-w-[260px] whitespace-nowrap px-3 py-3 text-center text-xs font-semibold uppercase text-gray-600 dark:text-gray-300"
+                    >
+                      Actions
+                    </TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedBalanceRows.map((s, idx) => (
+                    <TableRow
+                      key={s.id}
+                      className="border-b border-gray-100 dark:border-gray-800"
+                    >
+                      <TableCell className="px-3 py-2.5 text-center text-sm text-gray-500">
+                        {globalRowIndex(balancePage, balancePageSize, idx)}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 font-medium text-gray-800 dark:text-white/90">
+                        {s.firstName} {s.lastName}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 font-mono text-sm text-gray-600 dark:text-gray-400">
+                        {s.studentId}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-400">
+                        {s.phone || "—"}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-400">
+                        {s.gender || "—"}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-400">
+                        {s.department ? (
+                          <>
+                            <span className="font-medium">{s.department.code}</span>
+                            <span className="block text-xs text-gray-400">{s.department.name}</span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-sm text-gray-600 dark:text-gray-400">
+                        {s.class ? s.class.name : "—"}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <Badge color={STATUS_COLOR[s.status] || "light"} size="sm">
+                          {s.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5 text-right text-sm font-semibold text-red-600 dark:text-red-400">
+                        $
+                        {s.balance.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </TableCell>
+                      <TableCell className="px-3 py-2.5">
+                        <div className="flex flex-nowrap items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void openHistoryModal(s)}
+                            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10 dark:hover:text-brand-400"
+                          >
+                            <List className="h-4 w-4 shrink-0" />
+                            Transactions
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openPaymentModal(s)}
+                            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-1.5 text-xs font-medium text-violet-700 transition hover:border-violet-300 hover:bg-violet-100 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20"
+                          >
+                            <DollarSign className="h-4 w-4 shrink-0" />
+                            Payment
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <TablePagination
+              page={balancePage}
+              totalPages={balanceTotalPages}
+              total={balanceTotal}
+              from={balanceFrom}
+              to={balanceTo}
+              pageSize={balancePageSize}
+              onPageChange={setBalancePage}
+              onPageSizeChange={setBalancePageSize}
+            />
+          </>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="p-5 sm:p-6">
-        <div className="space-y-8">
-          {error && (
-            <div
-              role="alert"
-              className="flex gap-3 rounded-2xl border border-red-200/80 bg-red-50 px-4 py-3.5 text-sm text-red-800 dark:border-red-800/50 dark:bg-red-500/10 dark:text-red-300"
-            >
-              <AlertIcon className="mt-0.5 h-5 w-5 shrink-0 text-red-500 dark:text-red-400" />
-              <span>{error}</span>
-            </div>
-          )}
+      {/* Payment modal */}
+      <Modal
+        isOpen={!!paymentStudent}
+        onClose={closePaymentModal}
+        className="max-w-[min(100vw-2rem,440px)]"
+      >
+        {paymentStudent && (
+          <div className="p-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Record payment
+            </h3>
 
-          {lastReceipt && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50 px-4 py-4 text-sm text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-500/10 dark:text-emerald-200 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex gap-2">
-                <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                <span>
-                  Saved <strong>${lastReceipt.totalAmount.toLocaleString()}</strong> for{" "}
-                  <strong>
-                    {lastReceipt.student.firstName} {lastReceipt.student.lastName}
-                  </strong>
-                  . Receipt should have opened for printing.
-                </span>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0 border-emerald-300 bg-white text-emerald-900 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-100"
-                onClick={() => openPrintReceipt(lastReceipt)}
+            <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-50/80 px-2.5 py-2 dark:border-gray-700 dark:bg-gray-800/40">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 text-xs font-bold text-white"
+                aria-hidden
               >
-                Print again
-              </Button>
-            </div>
-          )}
-
-          <section className="rounded-2xl border border-violet-100 bg-gradient-to-b from-violet-50/80 to-white p-5 shadow-sm dark:border-violet-900/40 dark:from-violet-950/40 dark:to-gray-900/40">
-            <h3 className="mb-1 text-base font-semibold text-gray-900 dark:text-white">Student</h3>
-            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">Search and select who is paying.</p>
-            <div className="relative">
-              <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-                <UserCircleIcon className="h-4 w-4 text-violet-500" />
-                Find student <span className="text-error-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  if (!e.target.value) setSelectedStudent(null);
-                }}
-                placeholder="Name, phone, or student ID (min. 2 characters)"
-                className={`${inputClass} pr-12`}
-              />
-              {searchLoading && (
-                <div className="absolute right-4 top-10 h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500" />
-              )}
-              {searchResults.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-2 max-h-64 overflow-auto rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
-                  {searchResults.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedStudent(s);
-                        setSearchResults([]);
-                        setSearchQuery(`${s.firstName} ${s.lastName} (${s.studentId})`);
-                      }}
-                      className="flex w-full flex-col gap-0.5 border-b border-gray-100 px-4 py-3.5 text-left transition-colors hover:bg-violet-50 dark:border-gray-800 dark:hover:bg-violet-500/10 last:border-0"
-                    >
-                      <span className="font-medium text-gray-800 dark:text-white/90">
-                        {s.firstName} {s.lastName}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {s.studentId} · {s.department?.code} · Balance ${(s.balance ?? 0).toLocaleString()}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {selectedStudent && (
-              <div className="relative mt-5 overflow-hidden rounded-2xl border border-violet-200/80 bg-white p-5 shadow-inner dark:border-violet-500/30 dark:bg-gray-900/60">
-                <div className="absolute right-0 top-0 h-24 w-24 translate-x-6 -translate-y-6 rounded-full bg-violet-400/10" />
-                <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-4">
-                    <div
-                      className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-lg font-bold text-white shadow-lg"
-                      aria-hidden
-                    >
-                      {initials}
-                    </div>
-                    <div>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {selectedStudent.firstName} {selectedStudent.lastName}
-                      </p>
-                      <p className="font-mono text-sm text-violet-600 dark:text-violet-400">{selectedStudent.studentId}</p>
-                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        Balance due:{" "}
-                        <span className="font-semibold text-gray-900 dark:text-white">
-                          ${(selectedStudent.balance ?? 0).toLocaleString()}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedStudent(null); setSearchQuery(""); }}>
-                    Change
-                  </Button>
-                </div>
+                {paymentInitials}
               </div>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-gray-100 bg-gray-50/60 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900/50">
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Months &amp; year</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Choose a continuous range (from–to, inclusive). Amount below applies to <strong>each</strong> month in
-                  that range.
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                  {paymentStudent.firstName} {paymentStudent.lastName}
+                </p>
+                <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                  <span className="font-mono text-violet-600 dark:text-violet-400">
+                    {paymentStudent.studentId}
+                  </span>
+                  {" · "}
+                  {paymentStudent.department?.code}
+                  {paymentStudent.class ? ` · ${paymentStudent.class.name}` : ""}
                 </p>
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={selectFullYear}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  Jan–Dec
-                </button>
-                <button
-                  type="button"
-                  onClick={resetToThisMonth}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  This month
-                </button>
+              <div className="shrink-0 text-right">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-red-600/80 dark:text-red-400/80">
+                  Balance
+                </p>
+                <p className="text-sm font-bold text-red-600 dark:text-red-400">
+                  $
+                  {paymentStudent.balance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  From month <span className="text-error-500">*</span>
-                </label>
-                <select value={monthFrom} onChange={(e) => setMonthFrom(e.target.value)} className={selectClass}>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => (
-                    <option key={mo} value={String(mo)}>
-                      {new Date(2000, mo - 1, 1).toLocaleString("en-US", { month: "long" })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  To month <span className="text-error-500">*</span>
-                </label>
-                <select value={monthTo} onChange={(e) => setMonthTo(e.target.value)} className={selectClass}>
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => (
-                    <option key={mo} value={String(mo)}>
-                      {new Date(2000, mo - 1, 1).toLocaleString("en-US", { month: "long" })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Year</label>
-                <select value={year} onChange={(e) => setYear(e.target.value)} className={selectClass}>
-                  {yearOptions.map((y) => (
-                    <option key={y} value={String(y)}>
-                      {y}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </section>
 
-          <section className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50/90 via-white to-white p-5 shadow-sm dark:border-amber-900/30 dark:from-amber-950/20 dark:via-gray-900/50 dark:to-gray-900/30">
-            <h3 className="mb-1 flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-white">
-              <CalenderIcon className="h-5 w-5 text-amber-500" />
-              Amount
-            </h3>
-            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-              Enter the fee collected <strong>for each</strong> selected month (same rate every month).
-            </p>
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="min-w-[160px] flex-1">
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Amount per month</label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={amountPerMonth}
-                    onChange={(e) => setAmountPerMonth(e.target.value)}
-                    placeholder="0.00"
-                    className={`${inputClass} pl-8`}
+            {error && (
+              <div
+                role="alert"
+                className="mt-3 flex gap-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-800 dark:border-red-800/50 dark:bg-red-500/10 dark:text-red-300"
+              >
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {lastReceipt && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs text-emerald-900 dark:border-emerald-800/50 dark:bg-emerald-500/10 dark:text-emerald-200">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Payment saved.{" "}
+                  <button
+                    type="button"
+                    className="font-medium underline"
+                    onClick={() => openMonthlyFeeReceipt(lastReceipt)}
+                  >
+                    Print receipt
+                  </button>
+                </span>
+              </div>
+            )}
+
+            <form onSubmit={handleCompletePayment} className="mt-3 space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className={modalLabelClass}>Month</label>
+                  <select
+                    value={paymentMonth}
+                    onChange={(e) => setPaymentMonth(e.target.value)}
+                    className={modalSelectClass}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => (
+                      <option key={mo} value={String(mo)}>
+                        {monthName(mo)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={modalLabelClass}>Year</label>
+                  <select
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                    className={modalSelectClass}
+                  >
+                    {yearOptions.map((y) => (
+                      <option key={y} value={String(y)}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <DateInput
+                    id="modal-payment-date"
+                    label={<span className={modalLabelClass}>Payment date</span>}
+                    labelClassName="block"
+                    value={paymentDate}
+                    onChange={setPaymentDate}
+                    inputClassName={modalInputClass}
                   />
                 </div>
               </div>
-              <div className="flex min-h-[52px] flex-1 items-center rounded-xl border border-amber-200/80 bg-white/90 px-5 py-3 dark:border-amber-800/50 dark:bg-gray-900/70">
+
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-amber-800/80 dark:text-amber-200/80">
-                    Total to record
-                  </p>
-                  <p className="text-2xl font-bold tabular-nums text-amber-900 dark:text-amber-100">
-                    ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {monthsSorted.length} month{monthsSorted.length === 1 ? "" : "s"} × ${Number.isFinite(amt) ? amt.toLocaleString() : "0"}
-                  </p>
+                  <label className={modalLabelClass}>Discount</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={discountAmount}
+                      onChange={(e) => handleDiscountChange(e.target.value)}
+                      className={`${modalInputClass} pl-6`}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={modalLabelClass}>Amount paid</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                      $
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={depositAmount}
+                      onChange={(e) => handleAmountPaidChange(e.target.value)}
+                      className={`${modalInputClass} pl-6`}
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={modalLabelClass}>After payment</label>
+                  <div className="flex h-9 items-center rounded-lg border border-amber-200/80 bg-amber-50/80 px-2.5 text-sm font-semibold text-amber-900 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-100">
+                    $
+                    {balanceAfterPayment.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
 
-          <section className="rounded-2xl border border-gray-100 bg-gray-50/60 p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900/50">
-            <h3 className="mb-4 text-base font-semibold text-gray-900 dark:text-white">Bank</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Deposit to bank <span className="text-error-500">*</span>
-                </label>
-                <select value={mfBankId} onChange={(e) => setMfBankId(e.target.value)} required className={selectClass}>
-                  <option value="">Choose bank account…</option>
-                  {banks.map((b) => (
-                    <option key={b.id} value={String(b.id)}>
-                      {b.code} — {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <DateInput
-                id="mf-payment-date"
-                label={
-                  <span className="inline-flex items-center gap-1.5">
-                    <CalenderIcon className="h-3.5 w-3.5 text-brand-500" />
-                    Payment date
-                  </span>
+              <div
+                className={
+                  paymentMethod === "cash_on_hand"
+                    ? "grid grid-cols-1 gap-2"
+                    : "grid grid-cols-2 gap-2"
                 }
-                labelClassName="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                value={paymentDate}
-                onChange={setPaymentDate}
-                inputClassName={inputClass}
-              />
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Internal note (optional)</label>
-                <input type="text" value={note} onChange={(e) => setNote(e.target.value)} className={inputClass} placeholder="Staff-only note" />
+              >
+                <div>
+                  <label className={modalLabelClass}>Payment method</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    required
+                    className={modalSelectClass}
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {paymentMethod === "bank_receipt" && (
+                  <div>
+                    <label className={modalLabelClass}>Receipt no.</label>
+                    <input
+                      type="text"
+                      value={receiptNumber}
+                      onChange={(e) => setReceiptNumber(e.target.value)}
+                      className={modalInputClass}
+                      required
+                      placeholder="Receipt number"
+                    />
+                  </div>
+                )}
+                {paymentMethod === "electronic" && (
+                  <div>
+                    <label className={modalLabelClass}>Transaction ID</label>
+                    <input
+                      type="text"
+                      value={transactionId}
+                      onChange={(e) => setTransactionId(e.target.value)}
+                      className={modalInputClass}
+                      required
+                      placeholder="Transaction ID"
+                    />
+                  </div>
+                )}
               </div>
-            </div>
-          </section>
 
-          <div className="flex flex-col gap-4 border-t border-gray-100 pt-6 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {canRecord ? "You can save payments and print receipts." : "View only — you cannot submit."}
-            </p>
-            <Button
-              type="submit"
-              disabled={!selectedStudent || !mfBankId || submitting || !canRecord || monthsSorted.length === 0}
-              className="min-w-[220px] rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 px-6 py-2.5 text-base font-semibold shadow-lg shadow-violet-500/25 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50"
-            >
-              {submitting ? "Saving…" : "Save & print receipt"}
-            </Button>
+              <div>
+                <label className={modalLabelClass}>Description</label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className={`${modalInputClass} resize-none py-2`}
+                  placeholder="Received payment details"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+                <Button type="button" variant="outline" size="sm" onClick={closePaymentModal}>
+                  {lastReceipt ? "Close" : "Cancel"}
+                </Button>
+                {!lastReceipt && (
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={submitting || !canRecord || banks.length === 0}
+                    className="inline-flex items-center gap-1.5"
+                  >
+                    <DollarSign className="h-3.5 w-3.5" />
+                    {submitting ? "Saving…" : "Complete payment"}
+                  </Button>
+                )}
+              </div>
+            </form>
           </div>
-        </div>
-      </form>
-    </div>
+        )}
+      </Modal>
+
+      {/* History modal */}
+      <Modal
+        isOpen={!!historyStudent}
+        onClose={closeHistoryModal}
+        className="max-w-[min(100vw-2rem,720px)]"
+      >
+        {historyStudent && (
+          <div className="p-5 sm:p-6">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+              <List className="h-5 w-5 text-brand-500" />
+              Payment history
+            </h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {historyStudent.firstName} {historyStudent.lastName} ·{" "}
+              <span className="font-mono">{historyStudent.studentId}</span>
+            </p>
+
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+              </div>
+            ) : historyPayments.length === 0 ? (
+              <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                No payments recorded for this student yet.
+              </p>
+            ) : (
+              <div className="mt-4 max-h-[min(60vh,420px)] overflow-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800">
+                    <tr className="border-b border-gray-200 text-left text-xs font-semibold uppercase text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                      <th className="px-3 py-2.5">Date</th>
+                      <th className="px-3 py-2.5">Type</th>
+                      <th className="px-3 py-2.5">Period</th>
+                      <th className="px-3 py-2.5">Account</th>
+                      <th className="px-3 py-2.5 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyPayments.map((p) => (
+                      <tr
+                        key={`${p.kind}-${p.id}`}
+                        className="border-b border-gray-100 dark:border-gray-800"
+                      >
+                        <td className="whitespace-nowrap px-3 py-2.5 text-gray-700 dark:text-gray-300">
+                          {new Date(p.paymentDate).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                              p.kind === "monthly"
+                                ? "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300"
+                                : "bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300"
+                            }`}
+                          >
+                            {p.kind === "monthly" ? "Monthly" : "Registration"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">
+                          {paymentPeriodLabel(p)}
+                        </td>
+                        <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">
+                          {p.bank ? `${p.bank.code}` : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium text-gray-800 dark:text-white/90">
+                          $
+                          {p.amount.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={closeHistoryModal}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </>
   );
 }

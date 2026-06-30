@@ -3,19 +3,21 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
-import Button from "@/components/ui/button/Button";
+import ReportPageShell from "@/components/reports/ReportPageShell";
+import ReportCard from "@/components/reports/ReportCard";
+import ReportFilterSection from "@/components/reports/ReportFilterSection";
+import ReportFilterField, { ReportFilterSelect } from "@/components/reports/ReportFilterField";
+import ReportContentArea from "@/components/reports/ReportContentArea";
+import ReportSummaryBar, { ReportSummaryItem } from "@/components/reports/ReportSummaryBar";
+import ReportLoadingState from "@/components/reports/ReportLoadingState";
 import { useAuth } from "@/context/AuthContext";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHeader,
   TablePagination,
-  TableRow,
 } from "@/components/ui/table";
 import { usePagination } from "@/hooks/usePagination";
 import Badge from "@/components/ui/badge/Badge";
 import { authFetch } from "@/lib/api";
+import { exportReportCsv } from "@/lib/report-utils";
 
 type Department = { id: number; name: string; code: string };
 type Course = { id: number; name: string; code: string; department?: Department };
@@ -60,6 +62,8 @@ export default function LecturersReportPage() {
     ? lecturers.filter((l) => l.departments?.some((d) => d.id === Number(filterDept)))
     : lecturers;
 
+  const selectedDept = departments.find((d) => String(d.id) === filterDept);
+
   const {
     paginatedItems: paginatedLecturers,
     page,
@@ -72,28 +76,28 @@ export default function LecturersReportPage() {
     to,
   } = usePagination(filteredLecturers, [filterDept]);
 
-  const handlePrint = () => window.print();
-
   const handleExportCSV = () => {
-    const headers = ["Name", "Email", "Phone", "Degree", "Departments", "Courses", "Status"];
-    const rows = filteredLecturers.map((l) => [
-      l.name,
-      l.email,
-      l.phone ?? "",
-      l.degree ?? "",
-      (l.departments ?? []).map((d) => d.code).join("; "),
-      (l.courses ?? []).map((c) => c.code).join("; "),
-      l.isActive ? "Active" : "Inactive",
-    ]);
-    const csv = [headers.join(","), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Lecturers_Report_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportReportCsv(
+      `Lecturers_Report_${new Date().toISOString().slice(0, 10)}.csv`,
+      ["Name", "Email", "Phone", "Degree", "Departments", "Courses", "Status"],
+      filteredLecturers.map((l) => [
+        l.name,
+        l.email,
+        l.phone ?? "",
+        l.degree ?? "",
+        (l.departments ?? []).map((d) => d.code).join("; "),
+        (l.courses ?? []).map((c) => c.code).join("; "),
+        l.isActive ? "Active" : "Inactive",
+      ])
+    );
   };
+
+  const printMeta = [
+    ...(selectedDept
+      ? [{ label: "Department", value: `${selectedDept.code} — ${selectedDept.name}` }]
+      : []),
+    { label: "Total Lecturers", value: filteredLecturers.length },
+  ];
 
   if (!hasPermission("lecturers.view")) {
     return (
@@ -110,94 +114,99 @@ export default function LecturersReportPage() {
   }
 
   return (
-    <div className="report-print-area">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 no-print">
-        <PageBreadCrumb pageTitle="Lecturer Report" />
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleExportCSV}>
-            Export CSV
-          </Button>
-          <Button size="sm" onClick={handlePrint}>
-            Print
-          </Button>
-        </div>
-      </div>
+    <ReportPageShell
+      pageTitle="Lecturer Report"
+      onExportCsv={handleExportCSV}
+      exportDisabled={loading || filteredLecturers.length === 0}
+    >
+      <ReportCard>
+        <ReportFilterSection>
+          <ReportFilterField label="Department">
+            <ReportFilterSelect
+              value={filterDept}
+              onChange={(e) => setFilterDept(e.target.value)}
+            >
+              <option value="">All Departments</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.code} - {d.name}</option>
+              ))}
+            </ReportFilterSelect>
+          </ReportFilterField>
+        </ReportFilterSection>
 
-      <div className="mb-4 print:block hidden print:mb-2">
-        <h1 className="text-xl font-bold text-gray-900">Lecturer Report</h1>
-        <p className="text-sm text-gray-600">Generated: {new Date().toLocaleDateString()}</p>
-      </div>
-
-      <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/5">
-        <div className="no-print border-b border-gray-100 px-5 py-4 dark:border-gray-800">
-          <h3 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">Filters</h3>
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Department</label>
-              <select
-                value={filterDept}
-                onChange={(e) => setFilterDept(e.target.value)}
-                className="h-10 w-full min-w-0 sm:w-auto sm:min-w-[180px] rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:text-white/80"
-              >
-                <option value="">All Departments</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.code} - {d.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-        <div className="px-5 py-4">
-          <div className="mb-4 rounded-lg bg-brand-50 px-4 py-3 dark:bg-brand-500/10">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Lecturers: </span>
-            <span className="text-lg font-bold text-brand-600 dark:text-brand-400">{filteredLecturers.length}</span>
-          </div>
-          {loading ? (
-            <div className="flex justify-center py-16">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-brand-500" />
-            </div>
-          ) : (
+        {loading ? (
+          <ReportLoadingState />
+        ) : (
+          <ReportContentArea
+            title="Lecturer Report"
+            printMeta={printMeta}
+            summary={
+              <ReportSummaryBar>
+                <ReportSummaryItem label="lecturers" value={filteredLecturers.length} />
+              </ReportSummaryBar>
+            }
+          >
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-transparent! hover:bg-transparent!">
-                    <TableCell isHeader>#</TableCell>
-                    <TableCell isHeader>Name</TableCell>
-                    <TableCell isHeader>Email</TableCell>
-                    <TableCell isHeader>Phone</TableCell>
-                    <TableCell isHeader>Degree</TableCell>
-                    <TableCell isHeader>Departments</TableCell>
-                    <TableCell isHeader>Courses</TableCell>
-                    <TableCell isHeader className="text-center">Status</TableCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedLecturers.map((l, idx) => (
-                    <TableRow key={l.id}>
-                      <TableCell className="text-gray-500">{(page - 1) * pageSize + idx + 1}</TableCell>
-                      <TableCell className="font-medium">{l.name}</TableCell>
-                      <TableCell>{l.email}</TableCell>
-                      <TableCell>{l.phone ?? "—"}</TableCell>
-                      <TableCell>{l.degree ?? "—"}</TableCell>
-                      <TableCell>
-                        {(l.departments ?? []).length > 0
-                          ? (l.departments ?? []).map((d) => d.code).join(", ")
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {(l.courses ?? []).length > 0
-                          ? (l.courses ?? []).map((c) => c.code).join(", ")
-                          : "—"}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge color={l.isActive ? "success" : "error"} size="sm">
-                          {l.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <table className="w-full border-collapse text-sm print:text-xs">
+                <thead>
+                  <tr className="border-b-2 border-gray-300 bg-gray-50 print:border-black print:bg-transparent">
+                    <th className="w-8 py-2.5 pl-3 pr-2 text-left font-semibold text-gray-700 print:text-black">#</th>
+                    <th className="py-2.5 px-3 text-left font-semibold text-gray-700 print:text-black">Name</th>
+                    <th className="py-2.5 px-3 text-left font-semibold text-gray-700 print:text-black">Email</th>
+                    <th className="py-2.5 px-3 text-left font-semibold text-gray-700 print:text-black">Phone</th>
+                    <th className="py-2.5 px-3 text-left font-semibold text-gray-700 print:text-black">Degree</th>
+                    <th className="py-2.5 px-3 text-left font-semibold text-gray-700 print:text-black">Departments</th>
+                    <th className="py-2.5 px-3 text-left font-semibold text-gray-700 print:text-black">Courses</th>
+                    <th className="py-2.5 px-3 text-center font-semibold text-gray-700 print:text-black">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLecturers.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-10 text-center text-sm text-gray-500">
+                        No lecturers match the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedLecturers.map((l, idx) => (
+                      <tr
+                        key={l.id}
+                        className={`border-b border-gray-100 print:border-gray-300 ${
+                          idx % 2 === 1 ? "bg-gray-50/60 print:bg-transparent" : ""
+                        }`}
+                      >
+                        <td className="py-2 pl-3 pr-2 text-xs text-gray-400 print:text-black">
+                          {(page - 1) * pageSize + idx + 1}
+                        </td>
+                        <td className="py-2 px-3 font-medium print:text-black">{l.name}</td>
+                        <td className="py-2 px-3 print:text-black">{l.email}</td>
+                        <td className="py-2 px-3 print:text-black">{l.phone ?? "—"}</td>
+                        <td className="py-2 px-3 print:text-black">{l.degree ?? "—"}</td>
+                        <td className="py-2 px-3 print:text-black">
+                          {(l.departments ?? []).length > 0
+                            ? (l.departments ?? []).map((d) => d.code).join(", ")
+                            : "—"}
+                        </td>
+                        <td className="py-2 px-3 print:text-black">
+                          {(l.courses ?? []).length > 0
+                            ? (l.courses ?? []).map((c) => c.code).join(", ")
+                            : "—"}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <span className="no-print">
+                            <Badge color={l.isActive ? "success" : "error"} size="sm">
+                              {l.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </span>
+                          <span className="hidden print:inline">
+                            {l.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
               <TablePagination
                 className="no-print"
                 page={page}
@@ -210,9 +219,9 @@ export default function LecturersReportPage() {
                 onPageSizeChange={setPageSize}
               />
             </div>
-          )}
-        </div>
-      </div>
-    </div>
+          </ReportContentArea>
+        )}
+      </ReportCard>
+    </ReportPageShell>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
@@ -17,7 +16,7 @@ import { usePagination } from "@/hooks/usePagination";
 import { authFetch } from "@/lib/api";
 import { ModalOverlayGate } from "@/context/ModalOverlayContext";
 import { useAuth } from "@/context/AuthContext";
-import { ChevronLeftIcon, PlusIcon } from "@/icons";
+import { PlusIcon } from "@/icons";
 
 type Expense = {
   id: number;
@@ -190,11 +189,6 @@ export default function ExpensesPage() {
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <PageBreadCrumb pageTitle="Expenses" />
         <div className="flex flex-wrap items-center gap-2">
-          <Link href="/finance">
-            <Button variant="outline" size="sm" startIcon={<ChevronLeftIcon />}>
-              Back to Finance
-            </Button>
-          </Link>
           {canCreate && (
             <Button size="sm" startIcon={<PlusIcon />} onClick={() => setModal("add")}>
               Request Expense
@@ -238,7 +232,7 @@ export default function ExpensesPage() {
                 <TableCell isHeader>Date</TableCell>
                 <TableCell isHeader>Description</TableCell>
                 <TableCell isHeader>Category</TableCell>
-                <TableCell isHeader>Bank</TableCell>
+                <TableCell isHeader>Account</TableCell>
                 <TableCell isHeader className="text-right">Amount</TableCell>
                 <TableCell isHeader>Requested By</TableCell>
                 <TableCell isHeader>Status</TableCell>
@@ -349,7 +343,7 @@ export default function ExpensesPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium">Bank (optional)</label>
+                <label className="mb-1 block text-sm font-medium">Account (optional)</label>
                 <select
                   value={formBankId}
                   onChange={(e) => setFormBankId(e.target.value)}

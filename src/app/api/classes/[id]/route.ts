@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isValidSemester } from "@/lib/semesters";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -63,23 +62,6 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       }
       data.departmentId = did;
     }
-    if (body.semester !== undefined) {
-      const sem = String(body.semester).trim();
-      if (!(await isValidSemester(sem))) {
-        return NextResponse.json(
-          { error: "Invalid semester. Use a semester from the Semesters settings." },
-          { status: 400 }
-        );
-      }
-      data.semester = sem;
-    }
-    if (body.year !== undefined) {
-      const y = Number(body.year);
-      if (!Number.isInteger(y)) {
-        return NextResponse.json({ error: "Invalid year" }, { status: 400 });
-      }
-      data.year = y;
-    }
     if (body.room !== undefined) data.room = body.room || null;
     if (body.schedule !== undefined) data.schedule = body.schedule || null;
     if (body.capacity !== undefined) {
@@ -105,7 +87,7 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
       (e as { code: string }).code === "P2002"
     ) {
       return NextResponse.json(
-        { error: "A class with this name in the same semester/year already exists" },
+        { error: "A class with this name already exists in this department" },
         { status: 400 }
       );
     }

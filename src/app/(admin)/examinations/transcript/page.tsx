@@ -6,13 +6,11 @@ import Button from "@/components/ui/button/Button";
 import { authFetch } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { TranscriptDocument } from "@/components/transcript/TranscriptDocument";
-import { compareTranscriptSemesterKeys } from "@/lib/semester-sort";
 
 type Department = { id: number; name: string; code: string };
 type ClassItem = {
   id: number;
   name: string;
-  semester: string;
   year: number;
   department: { code: string; name: string; id?: number };
 };
@@ -22,19 +20,17 @@ type StudentItem = {
   firstName: string;
   lastName: string;
   department: { id: number; name: string; code: string };
-  class?: { id: number; name: string; semester: string; year: number; department: { code: string } };
+  class?: { id: number; name: string; year: number; department: { code: string } };
 };
 type ExamRecord = {
   id: number;
-  semester: string;
   year: number;
   totalMarks: number;
   grade: string | null;
   gradePoints: number | null;
   course: { code: string; name: string; creditHours: number };
 };
-type SemesterGPA = {
-  semester: string;
+type YearGPA = {
   year: number;
   gpa: number;
   totalCredits: number;
@@ -52,25 +48,42 @@ type TranscriptData = {
       id: number;
       name: string;
       code: string;
-      faculty?: { id: number; name: string; code: string };
     };
   };
   records: ExamRecord[];
   gpa: {
     cumulativeGPA: number;
     totalCredits: number;
-    semesters: SemesterGPA[];
+    years: YearGPA[];
   };
-  semesterSortMap?: Record<string, number>;
 };
 
 type ClassTranscriptData = {
-  class: { id: number; name: string; semester: string; year: number; department: { code: string; name: string } };
+  class: { id: number; name: string; department: { code: string; name: string } };
   transcripts: TranscriptData[];
-  semesterSortMap?: Record<string, number>;
 };
 
 type TranscriptMode = "student" | "class";
+
+function groupRecordsByYear(records: ExamRecord[]): Record<string, ExamRecord[]> {
+  return records.reduce<Record<string, ExamRecord[]>>((acc, r) => {
+    const key = String(r.year);
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(r);
+    return acc;
+  }, {});
+}
+
+function sortYearKeys(keys: string[]): string[] {
+  return [...keys].sort((a, b) => Number(a) - Number(b));
+}
+
+function buildYearGpaMap(years: YearGPA[]): Record<string, YearGPA> {
+  return years.reduce<Record<string, YearGPA>>((acc, y) => {
+    acc[String(y.year)] = y;
+    return acc;
+  }, {});
+}
 
 export default function TranscriptPage() {
   const { hasPermission } = useAuth();
@@ -112,7 +125,7 @@ export default function TranscriptPage() {
       }
     } catch { /* empty */ }
     setLoading(false);
-  }, [filterDept, filterClass]);
+  }, [filterDept, filterClass, filterStudent]);
 
   const fetchTranscript = useCallback(async () => {
     if (!filterStudent) {
@@ -173,23 +186,8 @@ export default function TranscriptPage() {
 
   const handlePrint = () => window.print();
 
-  // Group records by semester (year + semester)
-  const recordsBySemester = transcript
-    ? transcript.records.reduce<Record<string, ExamRecord[]>>((acc, r) => {
-        const key = `${r.year}-${r.semester}`;
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(r);
-        return acc;
-      }, {})
-    : {};
-
-  const semesterSortMap =
-    transcript?.semesterSortMap ?? classTranscript?.semesterSortMap ?? undefined;
-
-  // Sort keys like "2024-Semester 1" (year first; do not split on every "-")
-  const semesterKeys = Object.keys(recordsBySemester).sort((a, b) =>
-    compareTranscriptSemesterKeys(a, b, semesterSortMap)
-  );
+  const recordsByYear = transcript ? groupRecordsByYear(transcript.records) : {};
+  const yearKeys = sortYearKeys(Object.keys(recordsByYear));
 
   const canView =
     hasPermission("examinations.view") ||
@@ -209,7 +207,6 @@ export default function TranscriptPage() {
       <div className="mb-6 no-print">
         <PageBreadCrumb pageTitle="Transcript" />
       </div>
-
 
       <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/5">
         <div className="no-print border-b border-gray-100 px-5 py-4 dark:border-gray-800">
@@ -279,7 +276,7 @@ export default function TranscriptPage() {
                 <option value="">Select Class</option>
                 {filteredClasses.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.department?.code} - {c.name} ({c.semester} {c.year})
+                    {c.department?.code} - {c.name} ({c.year})
                   </option>
                 ))}
               </select>
@@ -326,7 +323,6 @@ export default function TranscriptPage() {
               No transcript data found for this class.
             </div>
           ) : classTranscript ? (
-            /* Class transcript: all students */
             classTranscript.transcripts.length === 0 ? (
               <div className="py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                 No students in this class.
@@ -339,29 +335,16 @@ export default function TranscriptPage() {
                 </Button>
               </div>
               {classTranscript.transcripts.map((t, idx) => {
-                const recBySem = t.records.reduce<Record<string, ExamRecord[]>>((acc, r) => {
-                  const key = `${r.year}-${r.semester}`;
-                  if (!acc[key]) acc[key] = [];
-                  acc[key].push(r);
-                  return acc;
-                }, {});
-                const keys = Object.keys(recBySem).sort((a, b) =>
-                  compareTranscriptSemesterKeys(a, b, classTranscript.semesterSortMap)
-                );
-                const semGpaMap = t.gpa.semesters.reduce<Record<string, SemesterGPA>>(
-                  (acc, s) => {
-                    acc[`${s.year}-${s.semester}`] = s;
-                    return acc;
-                  },
-                  {}
-                );
+                const recByYear = groupRecordsByYear(t.records);
+                const keys = sortYearKeys(Object.keys(recByYear));
+                const yearGpaMap = buildYearGpaMap(t.gpa.years);
                 return (
                   <div key={t.student.id} className={idx > 0 ? "break-before-page" : ""}>
                     <TranscriptDocument
                       student={t.student}
-                      recordsBySemester={recBySem}
-                      semesterKeys={keys}
-                      semGpaMap={semGpaMap}
+                      recordsByYear={recByYear}
+                      yearKeys={keys}
+                      yearGpaMap={yearGpaMap}
                       cumulativeGPA={t.gpa.cumulativeGPA}
                       totalCredits={t.gpa.totalCredits}
                     />
@@ -374,15 +357,9 @@ export default function TranscriptPage() {
             <TranscriptDocument
               showPrintButton
               student={transcript.student}
-              recordsBySemester={recordsBySemester}
-              semesterKeys={semesterKeys}
-              semGpaMap={transcript.gpa.semesters.reduce<Record<string, SemesterGPA>>(
-                (acc, s) => {
-                  acc[`${s.year}-${s.semester}`] = s;
-                  return acc;
-                },
-                {}
-              )}
+              recordsByYear={recordsByYear}
+              yearKeys={yearKeys}
+              yearGpaMap={buildYearGpaMap(transcript.gpa.years)}
               cumulativeGPA={transcript.gpa.cumulativeGPA}
               totalCredits={transcript.gpa.totalCredits}
             />

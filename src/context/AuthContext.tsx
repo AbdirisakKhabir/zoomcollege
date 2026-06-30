@@ -11,10 +11,13 @@ import { useRouter } from "next/navigation";
 import {
   AuthUser,
   clearStoredAuth,
+  getStoredActiveDepartmentId,
   getStoredAuth,
-  setStoredAuth,
   getStoredToken,
+  setStoredActiveDepartmentId,
+  setStoredAuth,
   isSessionExpired,
+  touchSessionActivity,
 } from "@/types/auth";
 
 type AuthContextType = {
@@ -24,6 +27,7 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<{ error?: string }>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  setActiveDepartment: (departmentId: number | null) => Promise<void>;
   hasPermission: (permission: string) => boolean;
 };
 
@@ -43,6 +47,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace("/signin");
   }, [router]);
 
+  const fetchMe = useCallback(async (departmentId?: number | null) => {
+    const t = getStoredToken();
+    if (!t) return null;
+    const headers: Record<string, string> = { Authorization: `Bearer ${t}` };
+    const dept =
+      departmentId !== undefined
+        ? departmentId
+        : getStoredActiveDepartmentId();
+    if (dept) headers["X-Department-Id"] = String(dept);
+    const res = await fetch("/api/auth/me", { headers });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.user as AuthUser;
+  }, []);
+
   const refreshUser = useCallback(async () => {
     const t = getStoredToken();
     if (!t) {
@@ -52,14 +71,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      const res = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${t}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const auth = { user: data.user, token: t };
-        setStoredAuth(auth, { preserveLoginAt: true });
-        setUser(data.user);
+      const nextUser = await fetchMe();
+      if (nextUser) {
+        const auth = { user: nextUser, token: t };
+        setStoredAuth(auth, { preserveLastActivityAt: true });
+        setUser(nextUser);
         setToken(t);
       } else {
         clearStoredAuth();
@@ -73,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchMe]);
 
   useEffect(() => {
     const stored = getStoredAuth();
@@ -92,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshUser, forceLogoutAndRedirect]);
 
-  // Session expiry: check every minute and on tab focus; logout and redirect after 1 hour
+  // Session expiry: logout after 1 hour of inactivity (clicks, keys, scroll, API calls)
   useEffect(() => {
     const check = () => {
       if (getStoredToken() && isSessionExpired()) {
@@ -110,6 +126,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [forceLogoutAndRedirect]);
 
+  useEffect(() => {
+    if (!token) return;
+
+    const onActivity = () => touchSessionActivity();
+    const events = ["click", "keydown", "mousedown", "touchstart", "scroll"] as const;
+
+    for (const event of events) {
+      window.addEventListener(event, onActivity, { passive: true });
+    }
+
+    return () => {
+      for (const event of events) {
+        window.removeEventListener(event, onActivity);
+      }
+    };
+  }, [token]);
+
   const login = useCallback(
     async (email: string, password: string): Promise<{ error?: string }> => {
       try {
@@ -122,7 +155,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!res.ok) {
           return { error: data.error || "Login failed" };
         }
-        setStoredAuth({ user: data.user, token: data.token, loginAt: Date.now() });
+        setStoredAuth({ user: data.user, token: data.token, lastActivityAt: Date.now() });
+        if (!data.user.isSuperAdmin && data.user.departmentAssignments?.length > 0) {
+          const active =
+            data.user.activeDepartmentId ??
+            data.user.departmentAssignments[0]?.departmentId ??
+            null;
+          if (active) setStoredActiveDepartmentId(active);
+        }
         setUser(data.user);
         setToken(data.token);
         setIsLoading(false);
@@ -134,6 +174,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const setActiveDepartment = useCallback(
+    async (departmentId: number | null) => {
+      setStoredActiveDepartmentId(departmentId);
+      const nextUser = await fetchMe(departmentId);
+      if (!nextUser) return;
+      const t = getStoredToken();
+      if (!t) return;
+      setStoredAuth({ user: nextUser, token: t }, { preserveLastActivityAt: true });
+      setUser(nextUser);
+    },
+    [fetchMe]
+  );
+
   const logout = useCallback(() => {
     clearStoredAuth();
     setUser(null);
@@ -143,6 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasPermission = useCallback(
     (permission: string): boolean => {
       if (!user?.permissions) return false;
+      if (user.isSuperAdmin) return true;
       if (user.permissions.includes("admin") || user.permissions.includes("*"))
         return true;
       return user.permissions.includes(permission);
@@ -159,6 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         logout,
         refreshUser,
+        setActiveDepartment,
         hasPermission,
       }}
     >

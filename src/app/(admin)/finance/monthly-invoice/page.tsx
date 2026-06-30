@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import MonthlyInvoiceForm from "@/components/finance/MonthlyInvoiceForm";
 import { useAuth } from "@/context/AuthContext";
@@ -24,11 +23,6 @@ export default function MonthlyInvoicePage() {
   return (
     <div>
       <PageBreadCrumb pageTitle="Monthly invoice" />
-      <div className="mb-6 flex flex-wrap items-center gap-3 text-sm">
-        <Link href="/finance" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
-          ← Finance home
-        </Link>
-      </div>
       <div className="mx-auto max-w-3xl min-w-0">
         <MonthlyInvoiceForm canRecord={canRecord} />
       </div>

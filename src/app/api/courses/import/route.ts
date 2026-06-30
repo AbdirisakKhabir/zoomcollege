@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
 import * as XLSX from "xlsx";
 
 function findCol(headerRow: string[], patterns: RegExp[]): number {
@@ -113,7 +112,6 @@ export async function POST(req: NextRequest) {
           departmentId,
         },
       });
-      await seedDefaultAssessmentsIfEmpty(course.id);
       created.push(course.id);
     }
 

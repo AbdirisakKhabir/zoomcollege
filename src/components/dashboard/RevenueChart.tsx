@@ -1,89 +1,119 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { ApexOptions } from "apexcharts";
-import { authFetch } from "@/lib/api";
+import { DollarLineIcon } from "@/icons";
+import { useTheme } from "@/context/ThemeContext";
+import { useDashboard } from "./DashboardContext";
+import DashboardCard from "./DashboardCard";
+import { getBaseChartOptions } from "./chartTheme";
 
 const ReactApexChart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
-type ChartData = {
-  revenueByMonth: { month: string; total: number }[];
-};
-
 export default function RevenueChart() {
-  const [data, setData] = useState<ChartData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { theme } = useTheme();
+  const { data, loading } = useDashboard();
 
-  useEffect(() => {
-    authFetch("/api/dashboard")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((d) => {
-        if (d?.chartData) setData(d.chartData);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  const revenueByMonth = data?.chartData.revenueByMonth ?? [];
+  const admissionsByMonth = data?.chartData.admissionsByMonth ?? [];
 
-  if (loading || !data) {
-    return (
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm dark:border-gray-800 dark:bg-white/5 sm:px-6">
-        <div className="h-8 w-40 animate-pulse rounded bg-gray-200 dark:bg-gray-800" />
-        <div className="mt-6 h-[280px] animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
-      </div>
-    );
-  }
+  const totalRevenue = revenueByMonth.reduce((s, m) => s + m.total, 0);
+  const currentMonth = new Date().getMonth();
+  const thisMonthRevenue = revenueByMonth[currentMonth]?.total ?? 0;
+  const lastMonthRevenue = currentMonth > 0 ? revenueByMonth[currentMonth - 1]?.total ?? 0 : 0;
+  const revenueChange =
+    lastMonthRevenue > 0
+      ? Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : null;
 
-  const categories = data.revenueByMonth.map((m) => m.month);
-  const revenueData = data.revenueByMonth.map((m) => m.total);
+  const options: ApexOptions = useMemo(() => {
+    const base = getBaseChartOptions(theme);
+    return {
+      ...base,
+      colors: ["#465FFF", "#10B981"],
+      stroke: { curve: "smooth", width: [3, 2] },
+      fill: {
+        type: ["gradient", "solid"],
+        gradient: { opacityFrom: 0.35, opacityTo: 0.02 },
+        opacity: [1, 0.15],
+      },
+      dataLabels: { enabled: false },
+      xaxis: {
+        ...base.xaxis,
+        categories: revenueByMonth.map((m) => m.month),
+      },
+      yaxis: [
+        {
+          labels: {
+            style: { colors: theme === "dark" ? "#9CA3AF" : "#6B7280", fontSize: "12px" },
+            formatter: (v) => `$${Number(v).toLocaleString()}`,
+          },
+        },
+        {
+          opposite: true,
+          labels: {
+            style: { colors: theme === "dark" ? "#9CA3AF" : "#6B7280", fontSize: "12px" },
+            formatter: (v) => Math.round(Number(v)).toString(),
+          },
+        },
+      ],
+      legend: {
+        position: "top",
+        horizontalAlign: "right",
+        labels: { colors: theme === "dark" ? "#9CA3AF" : "#6B7280" },
+      },
+      tooltip: {
+        theme: theme === "dark" ? "dark" : "light",
+        shared: true,
+        y: [
+          { formatter: (v) => `$${Number(v).toLocaleString()}` },
+          { formatter: (v) => `${v} students` },
+        ],
+      },
+    };
+  }, [theme, revenueByMonth]);
 
-  const options: ApexOptions = {
-    chart: {
-      fontFamily: "Roboto, sans-serif",
-      toolbar: { show: false },
-      zoom: { enabled: false },
-    },
-    colors: ["#465FFF"],
-    stroke: { curve: "smooth", width: 2 },
-    fill: {
-      type: "gradient",
-      gradient: { opacityFrom: 0.4, opacityTo: 0.05 },
-    },
-    dataLabels: { enabled: false },
-    xaxis: {
-      categories,
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-    },
-    yaxis: {
-      labels: { formatter: (v) => `$${Number(v).toLocaleString()}` },
-    },
-    legend: { show: false },
-    grid: {
-      xaxis: { lines: { show: false } },
-      yaxis: { lines: { show: true } },
-    },
-    tooltip: {
-      y: { formatter: (v) => `$${Number(v).toLocaleString()}` },
-    },
-  };
-
-  const series = [{ name: "Revenue", data: revenueData }];
+  const series = [
+    { name: "Revenue", type: "area" as const, data: revenueByMonth.map((m) => m.total) },
+    { name: "Admissions", type: "line" as const, data: admissionsByMonth.map((m) => m.count) },
+  ];
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-5 py-6 shadow-sm dark:border-gray-800 dark:bg-white/5 sm:px-6">
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400">
-          <span className="text-lg">$</span>
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tuition Revenue</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Current year — real data</p>
-        </div>
+    <DashboardCard
+      title="Tuition Revenue & Admissions"
+      subtitle={`${new Date().getFullYear()} overview`}
+      icon={<DollarLineIcon className="size-5" />}
+      iconClassName="bg-emerald-500/15 text-emerald-600 dark:bg-emerald-500/25 dark:text-emerald-400"
+      actionHref="/finance/collect-monthly-fee"
+      loading={loading}
+      headerExtra={
+        !loading && (
+          <div className="hidden text-right sm:block">
+            <p className="text-lg font-bold text-gray-900 dark:text-white">
+              ${totalRevenue.toLocaleString()}
+            </p>
+            {revenueChange !== null && (
+              <p
+                className={`text-xs font-medium ${revenueChange >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}
+              >
+                {revenueChange >= 0 ? "+" : ""}
+                {revenueChange}% vs last month
+              </p>
+            )}
+          </div>
+        )
+      }
+    >
+      <div className="min-h-[300px]">
+        {revenueByMonth.length > 0 ? (
+          <ReactApexChart options={options} series={series} type="line" height={300} />
+        ) : (
+          <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
+            No revenue data yet.
+          </div>
+        )}
       </div>
-      <div className="min-h-[280px]">
-        <ReactApexChart options={options} series={series} type="area" height={280} />
-      </div>
-    </div>
+    </DashboardCard>
   );
 }

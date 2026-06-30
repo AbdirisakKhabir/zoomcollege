@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateGPA } from "@/lib/grades";
-import { sortExamRecordsBySemesterChronologically } from "@/lib/semester-sort";
+import { calculateGPA, sortExamRecordsByYear } from "@/lib/grades";
 
 export async function GET(req: NextRequest) {
   try {
@@ -42,22 +41,11 @@ export async function GET(req: NextRequest) {
             id: true,
             name: true,
             code: true,
-            faculty: { select: { id: true, name: true, code: true } },
           },
         },
       },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     });
-
-    const semesters = await prisma.semester.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: "asc" },
-      select: { name: true, sortOrder: true },
-    });
-    const semOrderMap = semesters.reduce<Record<string, number>>((acc, s, i) => {
-      acc[s.name] = s.sortOrder ?? i;
-      return acc;
-    }, {});
 
     const transcripts: {
       student: {
@@ -70,11 +58,10 @@ export async function GET(req: NextRequest) {
           id: number;
           name: string;
           code: string;
-          faculty?: { id: number; name: string; code: string };
         };
       };
-      records: { id: number; semester: string; year: number; totalMarks: number; grade: string | null; gradePoints: number | null; course: { code: string; name: string; creditHours: number } }[];
-      gpa: { cumulativeGPA: number; totalCredits: number; semesters: { semester: string; year: number; gpa: number; totalCredits: number; totalGradePoints: number; courses: number }[] };
+      records: { id: number; year: number; totalMarks: number; grade: string | null; gradePoints: number | null; course: { code: string; name: string; creditHours: number } }[];
+      gpa: { cumulativeGPA: number; totalCredits: number; years: { year: number; gpa: number; totalCredits: number; totalGradePoints: number; courses: number }[] };
     }[] = [];
 
     for (const student of students) {
@@ -85,16 +72,14 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      const records = sortExamRecordsBySemesterChronologically(recordsRaw, semOrderMap);
+      const records = sortExamRecordsByYear(recordsRaw);
 
       const gpaData = calculateGPA(
         records.map((r) => ({
-          semester: r.semester,
           year: r.year,
           gradePoints: r.gradePoints,
           creditHours: r.course.creditHours,
-        })),
-        semOrderMap
+        }))
       );
 
       transcripts.push({
@@ -108,7 +93,6 @@ export async function GET(req: NextRequest) {
         },
         records: records.map((r) => ({
           id: r.id,
-          semester: r.semester,
           year: r.year,
           totalMarks: r.totalMarks,
           grade: r.grade,
@@ -122,7 +106,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       class: cls,
       transcripts,
-      semesterSortMap: semOrderMap,
     });
   } catch (e) {
     console.error("Class transcript error:", e);

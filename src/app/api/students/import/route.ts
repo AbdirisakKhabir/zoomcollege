@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { computeRegistrationFeeAmount } from "@/lib/monthly-fee";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 
@@ -33,29 +34,22 @@ function resolveAdmissionYear(
 
 function resolveClassByName(
   classNameRaw: string,
-  deptClasses: { id: number; name: string; semester: string; year: number }[],
-  admissionYear: AcademicYearRow | null
+  deptClasses: { id: number; name: string }[],
+  _admissionYear: AcademicYearRow | null
 ): number | null {
   const name = classNameRaw.trim();
   if (!name) return null;
   const candidates = deptClasses.filter((c) => c.name.toLowerCase() === name.toLowerCase());
   if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0].id;
-  if (admissionYear) {
-    const match = candidates.find(
-      (c) => c.year === admissionYear.endYear || c.year === admissionYear.startYear
-    );
-    if (match) return match.id;
-  }
   return candidates[0].id;
 }
 
 /** Get or create department by code; auto-creates if missing (for ACC, ICT, HRM, LAB, SWE, etc.) */
 async function getOrCreateDepartment(
   code: string,
-  deptByCode: Record<string, { id: number; code: string; tuitionFee: number | null }>,
-  departments: { id: number; code: string; tuitionFee: number | null }[]
-): Promise<{ id: number; tuitionFee: number | null } | null> {
+  deptByCode: Record<string, { id: number; code: string; registrationFee: number | null }>,
+  departments: { id: number; code: string; registrationFee: number | null }[]
+): Promise<{ id: number; registrationFee: number | null } | null> {
   const upper = code.toUpperCase();
   const existing = deptByCode[upper];
   if (existing) return existing;
@@ -72,14 +66,11 @@ async function getOrCreateDepartment(
   };
   const name = deptNames[upper] ?? `${upper} Department`;
 
-  const faculty = await prisma.faculty.findFirst({ orderBy: { id: "asc" } });
-  if (!faculty) return null;
-
   const created = await prisma.department.create({
-    data: { code: upper, name, facultyId: faculty.id, tuitionFee: 0 },
-    select: { id: true, tuitionFee: true },
+    data: { code: upper, name, registrationFee: 0 },
+    select: { id: true, registrationFee: true },
   });
-  deptByCode[upper] = { id: created.id, code: upper, tuitionFee: created.tuitionFee };
+  deptByCode[upper] = { id: created.id, code: upper, registrationFee: created.registrationFee };
   departments.push(deptByCode[upper]);
   return created;
 }
@@ -193,9 +184,9 @@ export async function POST(req: NextRequest) {
     const classIdx = findCol(headerRow, [/^class$/i, /^class\s*name$/i]);
 
     const departments = await prisma.department.findMany({
-      select: { id: true, code: true, tuitionFee: true },
+      select: { id: true, code: true, registrationFee: true },
     });
-    const deptByCode: Record<string, { id: number; code: string; tuitionFee: number | null }> =
+    const deptByCode: Record<string, { id: number; code: string; registrationFee: number | null }> =
       Object.fromEntries(departments.map((d) => [d.code.toUpperCase(), { ...d }]));
 
     const academicYears = await prisma.academicYear.findMany({
@@ -207,7 +198,7 @@ export async function POST(req: NextRequest) {
 
     const deptClasses = await prisma.class.findMany({
       where: { departmentId: selectedDepartmentId },
-      select: { id: true, name: true, semester: true, year: true },
+      select: { id: true, name: true },
     });
 
     const year = new Date().getFullYear();
@@ -285,7 +276,7 @@ export async function POST(req: NextRequest) {
         departmentId = dept.id;
       } else {
         const deptCode = deptCodeIdx >= 0 ? String(row[deptCodeIdx] ?? "").trim().toUpperCase() : "";
-        let dept: { id: number; tuitionFee: number | null } | null = deptCode
+        let dept: { id: number; registrationFee: number | null } | null = deptCode
           ? deptByCode[deptCode] ?? null
           : departments[0] ?? null;
         if (!dept && deptCode) {
@@ -334,11 +325,9 @@ export async function POST(req: NextRequest) {
         paymentStatusMap[paymentStatusRaw.toLowerCase()] ??
         (["Full Scholarship", "Half Scholar", "Fully Paid"].includes(paymentStatusRaw) ? paymentStatusRaw : "Fully Paid");
 
-      const tuitionFee = (dept ?? departments.find((d) => d.id === departmentId))?.tuitionFee ?? 0;
-      const initialBalance =
-        paymentStatus === "Full Scholarship" ? 0
-        : paymentStatus === "Half Scholar" ? tuitionFee * 0.5
-        : tuitionFee;
+      const registrationFee =
+        (dept ?? departments.find((d) => d.id === departmentId))?.registrationFee ?? 0;
+      const initialBalance = computeRegistrationFeeAmount(registrationFee, paymentStatus);
 
       const admissionYearRaw =
         admissionYearIdx >= 0 ? String(row[admissionYearIdx] ?? "").trim() : "";
@@ -384,7 +373,7 @@ export async function POST(req: NextRequest) {
           admissionAcademicYearId,
           classId: resolvedClassId,
           program: programIdx >= 0 ? String(row[programIdx] ?? "").trim() || null : null,
-          status: ["Pending", "Admitted", "Rejected", "Graduated"].includes(status) ? status : "Admitted",
+          status: ["Pending", "Admitted", "Rejected", "Graduated", "Inactive"].includes(status) ? status : "Admitted",
           paymentStatus,
           balance: initialBalance,
         },

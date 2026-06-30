@@ -15,9 +15,13 @@ model User {
   email              String               @unique
   password           String
   name               String?
+  imageUrl           String?
+  imagePublicId      String?
   roleId             Int
   role               Role                 @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  isSuperAdmin       Boolean              @default(false)
   isActive           Boolean              @default(true)
+  departmentAssignments UserDepartment[]
   attendanceSessions AttendanceSession[]
   tuitionPayments    TuitionPayment[]
   bankWithdrawals    BankWithdrawal[]
@@ -29,6 +33,11 @@ model User {
   payrollsApproved   Payroll[]            @relation("PayrollApprovedBy")
   monthlyInvoicesCreated StudentMonthlyInvoice[]
   monthlyFeePaymentsRecorded StudentMonthlyPayment[]
+  studentCasesRecorded   StudentCase[]
+  conversationsAsUserOne Conversation[]     @relation("ConversationUserOne")
+  conversationsAsUserTwo Conversation[]     @relation("ConversationUserTwo")
+  chatMessagesSent       ChatMessage[]
+  conversationReads      ConversationRead[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
@@ -40,6 +49,7 @@ model Role {
   name        String           @unique
   description String?
   users       User[]
+  userDepartments UserDepartment[]
   permissions RolePermission[]
 
   @@map("roles")
@@ -65,18 +75,22 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-model Faculty {
-  id          Int          @id @default(autoincrement())
-  name        String       @unique
-  code        String       @unique // e.g. "ENG", "SCI", "BUS"
+model Department {
+  id          Int                  @id @default(autoincrement())
+  name        String               @unique
+  code        String               @unique // e.g. "CS", "EE", "ACC"
   description String?
-  program     String? // "Bachelor", "Masters"
-  isActive    Boolean      @default(true)
-  departments Department[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  registrationFee Float?               @default(0)
+  isActive    Boolean              @default(true)
+  courses     Course[]
+  classes     Class[]
+  students    Student[]
+  lecturers   LecturerDepartment[]
+  userAssignments UserDepartment[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
-  @@map("faculties")
+  @@map("departments")
 }
 
 model Lecturer {
@@ -119,23 +133,19 @@ model LecturerCourse {
   @@map("lecturer_courses")
 }
 
-model Department {
-  id          Int                  @id @default(autoincrement())
-  name        String               @unique
-  code        String               @unique // e.g. "CS", "EE", "ACC"
-  description String?
-  facultyId   Int
-  faculty     Faculty              @relation(fields: [facultyId], references: [id], onDelete: Restrict)
-  tuitionFee  Float?               @default(0)
-  isActive    Boolean              @default(true)
-  courses     Course[]
-  classes     Class[]
-  students    Student[]
-  lecturers   LecturerDepartment[]
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+/// Department-scoped role assignment for multi-department access control.
+model UserDepartment {
+  userId       Int
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  departmentId Int
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  roleId       Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  @@map("departments")
+  @@id([userId, departmentId])
+  @@map("user_departments")
 }
 
 model Course {
@@ -151,6 +161,7 @@ model Course {
   examRecords    ExamRecord[]
   lecturers      LecturerCourse[]
   classSchedules ClassSchedule[]
+  attendanceSessions AttendanceSession[]
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
@@ -159,30 +170,21 @@ model Course {
   @@map("courses")
 }
 
-/// Per-course grading components; weightPercent values should sum to 100. Max marks for each = weightPercent (out of 100 total).
+/// Per class+course grading components; weightPercent values should sum to 100. Max marks for each = weightPercent (out of 100 total).
 model CourseAssessment {
   id            Int     @id @default(autoincrement())
   courseId      Int
   course        Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  classId       Int
+  class         Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
   name          String // e.g. "Mid Exam", "Assignment"
   key           String // stable id for JSON scores & import columns, e.g. "midExam"
   weightPercent Float
   sortOrder     Int     @default(0)
 
-  @@unique([courseId, key])
-  @@index([courseId])
+  @@unique([courseId, classId, key])
+  @@index([courseId, classId])
   @@map("course_assessments")
-}
-
-model Semester {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique // e.g. "Fall", "Spring", "Summer"
-  sortOrder Int      @default(0) // for display/ordering (lower = earlier in year)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("semesters")
 }
 
 model AcademicYear {
@@ -203,8 +205,6 @@ model Class {
   name               String // e.g. "Level 1-A", "Section B"
   departmentId       Int
   department         Department          @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  semester           String // e.g. "Fall", "Spring", "Summer"
-  year               Int // e.g. 2026 (from academic year)
   room               String? // e.g. "Room 201"
   schedule           String? // e.g. "Mon/Wed 9:00-10:30"
   capacity           Int                 @default(40)
@@ -212,10 +212,11 @@ model Class {
   attendanceSessions AttendanceSession[]
   students           Student[]
   classSchedules     ClassSchedule[]
+  courseAssessments  CourseAssessment[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  @@unique([name, semester, year])
+  @@unique([name, departmentId])
   @@map("classes")
 }
 
@@ -231,7 +232,6 @@ model ClassSchedule {
   shift      String // "Morning", "Afternoon", "Evening"
   startTime  String // e.g. "09:00"
   endTime    String // e.g. "10:30"
-  semester   String
   year       Int
   room       String?
   createdAt  DateTime @default(now())
@@ -263,9 +263,9 @@ model Student {
   class              Class?               @relation(fields: [classId], references: [id], onDelete: SetNull)
   program            String? // "Bachelor", "Masters"
   admissionDate      DateTime             @default(now())
-  status             String               @default("Admitted") // "Pending", "Admitted", "Rejected", "Graduated"
+  status             String               @default("Admitted") // "Pending", "Admitted", "Rejected", "Graduated", "Inactive"
   paymentStatus      String               @default("Fully Paid") // "Full Scholarship", "Half Scholar", "Fully Paid"
-  fee                Float?               // Monthly tuition amount for invoicing; if null, department tuitionFee is used
+  fee                Float?               // Monthly fee for invoicing
   balance            Float                @default(0) // Amount owed; charged at registration, reduced by payments
   monthlyInvoices    StudentMonthlyInvoice[]
   monthlyFeePayments StudentMonthlyPayment[]
@@ -273,10 +273,72 @@ model Student {
   examRecords        ExamRecord[]
   tuitionPayments    TuitionPayment[]
   transactionHistory TransactionHistory[]
+  cases              StudentCase[]
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
   @@map("students")
+}
+
+model StudentCase {
+  id           Int      @id @default(autoincrement())
+  studentId    Int
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  caseType     String   // "Disciplinary" | "Academic" | "Medical" | "Administrative" | "Other"
+  title        String
+  description  String?
+  caseDate     DateTime @default(now())
+  status       String   @default("Open") // "Open" | "Resolved" | "Closed"
+  resolution   String?
+  recordedById Int?
+  recordedBy   User?    @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([caseDate])
+  @@map("student_cases")
+}
+
+model Conversation {
+  id            Int                @id @default(autoincrement())
+  userOneId     Int
+  userTwoId     Int
+  userOne       User               @relation("ConversationUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
+  userTwo       User               @relation("ConversationUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
+  lastMessageAt DateTime?
+  messages      ChatMessage[]
+  reads         ConversationRead[]
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@unique([userOneId, userTwoId])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model ChatMessage {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       Int
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
+
+model ConversationRead {
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime     @default(now())
+
+  @@id([conversationId, userId])
+  @@map("conversation_reads")
 }
 
 model Bank {
@@ -329,8 +391,7 @@ model TuitionPayment {
   bankId        Int? // Optional for legacy payments; required for new deposits
   bank          Bank?    @relation(fields: [bankId], references: [id], onDelete: SetNull)
   amount        Float    @default(0)
-  semester      String // "Fall", "Spring", "Summer"
-  year          Int // e.g. 2026
+  year          Int // year recorded (audit); one registration payment per student
   paymentMethod String   @default("bank_receipt") // "bank_receipt" | "electronic" | "cash_on_hand"
   receiptNumber String? // Bank receipt number
   transactionId String? // Electronic transaction ID
@@ -342,7 +403,7 @@ model TuitionPayment {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@unique([studentId, semester, year])
+  @@unique([studentId])
   @@map("tuition_payments")
 }
 
@@ -445,6 +506,8 @@ model AttendanceSession {
   id        Int                @id @default(autoincrement())
   classId   Int
   class     Class              @relation(fields: [classId], references: [id], onDelete: Restrict)
+  courseId  Int
+  course    Course             @relation(fields: [courseId], references: [id], onDelete: Restrict)
   date      DateTime           @db.Date
   shift     String // "Morning", "Afternoon", "Evening"
   takenById Int
@@ -455,7 +518,7 @@ model AttendanceSession {
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
-  @@unique([classId, date, shift])
+  @@unique([classId, courseId, date, shift])
   @@map("attendance_sessions")
 }
 
@@ -530,7 +593,6 @@ model ExamRecord {
   student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   courseId   Int
   course     Course   @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  semester   String // "Fall", "Spring", "Summer"
   year       Int // e.g. 2026
   scores     Json     @default("{}") // { "midExam": 15, "finalExam": 32, ... } keys match CourseAssessment.key
   totalMarks Float    @default(0) // sum of component marks (out of 100)
@@ -540,6 +602,6 @@ model ExamRecord {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  @@unique([studentId, courseId, semester, year])
+  @@unique([studentId, courseId, year])
   @@map("exam_records")
 }

@@ -3,7 +3,10 @@ import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateTotalFromScoreMap, getGradeInfo } from "@/lib/grades";
 import { mergeScores, parseScoresJson } from "@/lib/course-assessments";
-import { seedDefaultAssessmentsIfEmpty } from "@/lib/seed-course-assessments";
+import {
+  loadAssessmentsForClassCourse,
+  seedDefaultAssessmentsIfEmpty,
+} from "@/lib/course-assessment-scope";
 
 const courseInclude = {
   select: {
@@ -12,16 +15,6 @@ const courseInclude = {
     code: true,
     creditHours: true,
     department: { select: { id: true, name: true, code: true } },
-    assessments: {
-      orderBy: [{ sortOrder: "asc" as const }, { id: "asc" as const }],
-      select: {
-        id: true,
-        name: true,
-        key: true,
-        weightPercent: true,
-        sortOrder: true,
-      },
-    },
   },
 };
 
@@ -76,17 +69,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     const scoresPatch = body.scores as Record<string, number | undefined>;
 
-    const existing = await prisma.examRecord.findUnique({ where: { id: Number(id) } });
+    const existing = await prisma.examRecord.findUnique({
+      where: { id: Number(id) },
+      include: {
+        student: { select: { classId: true } },
+      },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Exam record not found" }, { status: 404 });
     }
 
-    await seedDefaultAssessmentsIfEmpty(existing.courseId);
+    const classId = existing.student.classId;
+    if (!classId) {
+      return NextResponse.json(
+        { error: "Student is not assigned to a class; cannot resolve assessments" },
+        { status: 400 }
+      );
+    }
 
-    const assessments = await prisma.courseAssessment.findMany({
-      where: { courseId: existing.courseId },
-      orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    });
+    await seedDefaultAssessmentsIfEmpty(existing.courseId, classId);
+
+    const assessments = await loadAssessmentsForClassCourse(
+      existing.courseId,
+      classId
+    );
 
     const prev = parseScoresJson(existing.scores);
     const patch = scoresPatch;

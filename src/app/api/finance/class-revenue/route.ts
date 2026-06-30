@@ -12,12 +12,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const year = searchParams.get("year") || String(new Date().getFullYear());
     const departmentId = searchParams.get("departmentId");
-    const semester = searchParams.get("semester");
 
-    const where: { year: number; semester?: string; departmentId?: number } = {
-      year: Number(year),
-    };
-    if (semester) where.semester = semester;
+    const where: { departmentId?: number } = {};
     if (departmentId) where.departmentId = Number(departmentId);
 
     const classes = await prisma.class.findMany({
@@ -28,12 +24,12 @@ export async function GET(req: NextRequest) {
           include: {
             tuitionPayments: {
               where: { year: Number(year) },
-              select: { semester: true, year: true, amount: true },
+              select: { year: true, amount: true },
             },
           },
         },
       },
-      orderBy: [{ year: "desc" }, { semester: "asc" }, { name: "asc" }],
+      orderBy: [{ name: "asc" }],
     });
 
     const result = classes.map((cls) => {
@@ -47,8 +43,6 @@ export async function GET(req: NextRequest) {
       return {
         id: cls.id,
         name: cls.name,
-        semester: cls.semester,
-        year: cls.year,
         department: cls.department,
         studentCount,
         paidCount,

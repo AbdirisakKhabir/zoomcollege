@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { signToken } from "@/lib/jwt";
+import { authUserPayload, loadAuthContextByUserId } from "@/lib/department-access";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,14 +18,14 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { email: String(email).toLowerCase().trim() },
-      include: {
-        role: {
-          include: {
-            permissions: {
-              include: { permission: true },
-            },
-          },
-        },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        imageUrl: true,
+        password: true,
+        isActive: true,
+        roleId: true,
       },
     });
 
@@ -43,23 +44,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const ctx = await loadAuthContextByUserId(user.id);
+    if (!ctx) {
+      return NextResponse.json({ error: "User account is inactive" }, { status: 401 });
+    }
+
     const token = signToken({
       userId: user.id,
       email: user.email,
       roleId: user.roleId,
     });
 
-    const permissions = user.role.permissions.map((rp) => rp.permission.name);
-
     return NextResponse.json({
       token,
       user: {
-        id: user.id,
-        email: user.email,
+        ...authUserPayload(ctx),
         name: user.name,
-        roleId: user.roleId,
-        roleName: user.role.name,
-        permissions,
+        imageUrl: user.imageUrl ?? null,
       },
     });
   } catch (e) {

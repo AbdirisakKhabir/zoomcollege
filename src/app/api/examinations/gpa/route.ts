@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateGPA } from "@/lib/grades";
-import { sortExamRecordsBySemesterChronologically } from "@/lib/semester-sort";
 
 export async function GET(req: NextRequest) {
   try {
@@ -32,7 +31,6 @@ export async function GET(req: NextRequest) {
             id: true,
             name: true,
             code: true,
-            faculty: { select: { id: true, name: true, code: true } },
           },
         },
       },
@@ -51,33 +49,20 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    const semesters = await prisma.semester.findMany({
-      where: { isActive: true },
-      orderBy: { sortOrder: "asc" },
-      select: { name: true, sortOrder: true },
-    });
-    const semOrderMap = semesters.reduce<Record<string, number>>((acc, s, i) => {
-      acc[s.name] = s.sortOrder ?? i;
-      return acc;
-    }, {});
-
-    const records = sortExamRecordsBySemesterChronologically(recordsRaw, semOrderMap);
+    const records = [...recordsRaw].sort((a, b) => a.year - b.year);
 
     const gpaData = calculateGPA(
       records.map((r) => ({
-        semester: r.semester,
         year: r.year,
         gradePoints: r.gradePoints,
         creditHours: r.course.creditHours,
-      })),
-      semOrderMap
+      }))
     );
 
     return NextResponse.json({
       student,
       records,
       gpa: gpaData,
-      semesterSortMap: semOrderMap,
     });
   } catch (e) {
     console.error("GPA calculation error:", e);

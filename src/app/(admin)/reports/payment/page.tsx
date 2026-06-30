@@ -4,21 +4,27 @@ import Link from "next/link";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import { DollarLineIcon, ListIcon } from "@/icons";
 
+import { pageTitle } from "@/lib/brand";
+
 export const metadata: Metadata = {
-  title: "Finance Reports | Abaarso Tech University",
-  description: "Finance, payment, bank, and treasury reports",
+  title: pageTitle("Finance Reports"),
+  description: "Finance, payment, and account reports",
 };
 
 const paymentReportLinks = [
   { name: "Student Transactions", path: "/reports/student-transactions", icon: ListIcon, description: "View student payment status by department and class" },
-  { name: "Class Revenue", path: "/reports/class-revenue", icon: DollarLineIcon, description: "View class revenue with paid/unpaid counts" },
-  { name: "Unpaid Students", path: "/reports/unpaid-students", icon: DollarLineIcon, description: "Generate list of students who have not paid for a specific semester and class" },
-  { name: "Bank Balances", path: "/reports/bank-balances", icon: DollarLineIcon, description: "Current balance of each bank account" },
-  { name: "Bank Transactions", path: "/reports/bank-transactions", icon: ListIcon, description: "Deposits, withdrawals, and transfers by bank and date" },
+  { name: "Outstanding Balances", path: "/reports/outstanding-balances", icon: DollarLineIcon, description: "Students with outstanding balance by department, class, and date" },
+  { name: "Registration Fee Report", path: "/reports/registration-fee", icon: DollarLineIcon, description: "One-time registration fees — paid and unpaid students by department and class" },
+  { name: "Paid Students", path: "/reports/paid-students", icon: DollarLineIcon, description: "Students who paid monthly fees in a selected date range with totals" },
+  { name: "Scholarship Report", path: "/reports/scholarship", icon: DollarLineIcon, description: "View students on full or half scholarship" },
+  { name: "Individual Student Report", path: "/reports/individual-student", icon: ListIcon, description: "Payment history and balance for one student" },
+  { name: "Revenue Summary", path: "/reports/revenue-summary", icon: DollarLineIcon, description: "Target revenue vs collected amount per class" },
+  { name: "Unpaid Students", path: "/reports/unpaid-students", icon: DollarLineIcon, description: "Students who have not paid their one-time registration fee" },
+  { name: "Account Balances", path: "/reports/bank-balances", icon: DollarLineIcon, description: "Current balance of each financial account" },
+  { name: "Account Transactions", path: "/reports/bank-transactions", icon: ListIcon, description: "Deposits, withdrawals, and transfers by account and date" },
   { name: "Transaction History", path: "/reports/transaction-history", icon: ListIcon, description: "Unified log of all financial transactions (auto-created)" },
-  { name: "Treasury Summary", path: "/reports/treasury", icon: DollarLineIcon, description: "Bank balances, receivables, year revenue (tuition + monthly fees), and withdrawals" },
-  { name: "Daily Revenue", path: "/reports/daily-revenue", icon: DollarLineIcon, description: "Semester tuition and monthly fee revenue per day in a date range" },
-  { name: "Income Statement", path: "/reports/income-statement", icon: DollarLineIcon, description: "Annual revenue (tuition and monthly fees), expenses, and net income" },
+  { name: "Daily Report", path: "/reports/daily-revenue", icon: DollarLineIcon, description: "Registration and monthly fee revenue by day and by class in a date range" },
+  { name: "Income Statement", path: "/reports/income-statement", icon: DollarLineIcon, description: "Revenue, expenses, and net income for a selected date range" },
 ];
 
 export default function PaymentReportsIndexPage() {

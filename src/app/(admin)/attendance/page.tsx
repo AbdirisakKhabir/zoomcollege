@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
 import {
@@ -12,10 +13,10 @@ import {
   TablePagination,
   TableRow,
 } from "@/components/ui/table";
-import { DateInput } from "@/components/form/DateInput";
 import { globalRowIndex, usePagination } from "@/hooks/usePagination";
 import Badge from "@/components/ui/badge/Badge";
 import { authFetch } from "@/lib/api";
+import { DateInput } from "@/components/form/DateInput";
 import { ModalOverlayGate } from "@/context/ModalOverlayContext";
 import { useAuth } from "@/context/AuthContext";
 import { PlusIcon, TrashBinIcon } from "@/icons";
@@ -31,6 +32,8 @@ type ClassOption = {
 type SessionRow = {
   id: number;
   classId: number;
+  courseId: number;
+  course: { id: number; code: string; name: string };
   class: ClassOption;
   date: string;
   shift: string;
@@ -52,16 +55,10 @@ type StudentOption = {
   imageUrl: string | null;
 };
 
-type RecordEntry = {
-  studentId: number;
-  student: StudentOption;
-  status: string;
-  note: string;
-};
-
 type SessionDetail = {
   id: number;
   class: ClassOption;
+  course: { id: number; code: string; name: string };
   date: string;
   shift: string;
   takenBy: { id: number; name: string | null; email: string };
@@ -74,9 +71,6 @@ type SessionDetail = {
     student: StudentOption;
   }[];
 };
-
-const SHIFTS = ["Morning", "Afternoon", "Evening"];
-const ATTENDANCE_STATUSES = ["Present", "Absent", "Late", "Excused"];
 
 const STATUS_COLOR: Record<string, "success" | "error" | "warning" | "info"> = {
   Present: "success",
@@ -93,19 +87,8 @@ export default function AttendancePage() {
   const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterClassId, setFilterClassId] = useState("all");
-
-  // Take Attendance modal
-  const [showTake, setShowTake] = useState(false);
-  const [takeForm, setTakeForm] = useState({
-    classId: "",
-    date: new Date().toISOString().split("T")[0],
-    shift: "Morning",
-    note: "",
-  });
-  const [students, setStudents] = useState<RecordEntry[]>([]);
-  const [loadingStudents, setLoadingStudents] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // View detail modal
   const [viewSession, setViewSession] = useState<SessionDetail | null>(null);
@@ -114,7 +97,11 @@ export default function AttendancePage() {
   const canDelete = hasPermission("attendance.delete");
 
   async function loadSessions() {
-    const res = await authFetch("/api/attendance");
+    const params = new URLSearchParams();
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    const qs = params.toString();
+    const res = await authFetch(`/api/attendance${qs ? `?${qs}` : ""}`);
     if (res.ok) setSessions(await res.json());
   }
 
@@ -138,103 +125,7 @@ export default function AttendancePage() {
       await Promise.all([loadSessions(), loadClasses()]);
       setLoading(false);
     })();
-  }, []);
-
-  // Load students when class is selected
-  async function loadStudentsForClass(classId: string) {
-    if (!classId) {
-      setStudents([]);
-      return;
-    }
-    setLoadingStudents(true);
-    try {
-      const res = await authFetch(
-        `/api/students?status=Admitted&classId=${encodeURIComponent(classId)}`
-      );
-      if (res.ok) {
-        const admitted: (StudentOption & { status: string })[] =
-          await res.json();
-        setStudents(
-          admitted.map((s) => ({
-            studentId: s.id,
-            student: {
-              id: s.id,
-              studentId: s.studentId,
-              firstName: s.firstName,
-              lastName: s.lastName,
-              imageUrl: s.imageUrl,
-            },
-            status: "Present",
-            note: "",
-          }))
-        );
-      }
-    } finally {
-      setLoadingStudents(false);
-    }
-  }
-
-  function openTakeAttendance() {
-    const defaultClassId = classes[0] ? String(classes[0].id) : "";
-    setTakeForm({
-      classId: defaultClassId,
-      date: new Date().toISOString().split("T")[0],
-      shift: "Morning",
-      note: "",
-    });
-    setStudents([]);
-    setSubmitError("");
-    setShowTake(true);
-    if (defaultClassId) loadStudentsForClass(defaultClassId);
-  }
-
-  function updateStudentStatus(studentId: number, status: string) {
-    setStudents((prev) =>
-      prev.map((r) =>
-        r.studentId === studentId ? { ...r, status } : r
-      )
-    );
-  }
-
-  function markAll(status: string) {
-    setStudents((prev) => prev.map((r) => ({ ...r, status })));
-  }
-
-  async function handleTakeSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitError("");
-    if (!takeForm.classId || students.length === 0) {
-      setSubmitError("Select a class with students first.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await authFetch("/api/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          classId: Number(takeForm.classId),
-          date: takeForm.date,
-          shift: takeForm.shift,
-          note: takeForm.note || undefined,
-          records: students.map((r) => ({
-            studentId: r.studentId,
-            status: r.status,
-            note: r.note || undefined,
-          })),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setSubmitError(data.error || "Failed to save attendance");
-        return;
-      }
-      await loadSessions();
-      setShowTake(false);
-    } finally {
-      setSubmitting(false);
-    }
-  }
+  }, [dateFrom, dateTo]);
 
   async function handleViewSession(id: number) {
     const res = await authFetch(`/api/attendance/${id}`);
@@ -267,7 +158,7 @@ export default function AttendancePage() {
     total: filteredTotal,
     from,
     to,
-  } = usePagination(filtered, [filterClassId]);
+  } = usePagination(filtered, [filterClassId, dateFrom, dateTo]);
 
   if (!hasPermission("attendance.view")) {
     return (
@@ -293,16 +184,18 @@ export default function AttendancePage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <PageBreadCrumb pageTitle="Attendance" />
         {canCreate && (
-          <Button startIcon={<PlusIcon />} onClick={openTakeAttendance} size="sm">
-            Take Attendance
-          </Button>
+          <Link href="/attendance/take">
+            <Button startIcon={<PlusIcon />} size="sm">
+              Take Attendance
+            </Button>
+          </Link>
         )}
       </div>
 
       {/* Card */}
       <div className="min-w-0 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/3">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-800 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-base font-semibold text-gray-800 dark:text-white/90">
               Attendance Sessions
@@ -311,18 +204,41 @@ export default function AttendancePage() {
               {filtered.length}
             </span>
           </div>
-          <select
-            value={filterClassId}
-            onChange={(e) => setFilterClassId(e.target.value)}
-            className="h-10 rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300 dark:focus:border-brand-500/40"
-          >
-            <option value="all">All Classes</option>
-            {classes.map((c) => (
-              <option key={c.id} value={String(c.id)}>
-                {c.name} ({c.department.code})
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <DateInput
+              id="attendance-filter-from"
+              label="Date From"
+              labelClassName="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
+              value={dateFrom}
+              onChange={setDateFrom}
+              max={dateTo || undefined}
+              inputClassName="h-10 w-full min-w-[140px] rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300 dark:focus:border-brand-500/40"
+            />
+            <DateInput
+              id="attendance-filter-to"
+              label="Date To"
+              labelClassName="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
+              value={dateTo}
+              onChange={setDateTo}
+              min={dateFrom || undefined}
+              inputClassName="h-10 w-full min-w-[140px] rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300 dark:focus:border-brand-500/40"
+            />
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Class</label>
+              <select
+                value={filterClassId}
+                onChange={(e) => setFilterClassId(e.target.value)}
+                className="h-10 w-full min-w-[160px] rounded-lg border border-gray-200 bg-transparent px-3 text-sm text-gray-700 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-gray-300 dark:focus:border-brand-500/40"
+              >
+                <option value="all">All Classes</option>
+                {classes.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name} ({c.department.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Table */}
@@ -348,6 +264,7 @@ export default function AttendancePage() {
               <TableRow className="bg-transparent! hover:bg-transparent!">
                 <TableCell isHeader>#</TableCell>
                 <TableCell isHeader>Class</TableCell>
+                <TableCell isHeader>Course</TableCell>
                 <TableCell isHeader>Date</TableCell>
                 <TableCell isHeader>Shift</TableCell>
                 <TableCell isHeader>Taken By</TableCell>
@@ -369,6 +286,16 @@ export default function AttendancePage() {
                       </p>
                       <p className="text-xs text-gray-400 dark:text-gray-500">
                         {s.class.department.code}
+                      </p>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 dark:text-white/90">
+                        {s.course?.code}
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500">
+                        {s.course?.name}
                       </p>
                     </div>
                   </TableCell>
@@ -457,270 +384,6 @@ export default function AttendancePage() {
         )}
       </div>
 
-      {/* ───── Take Attendance Modal ───── */}
-      {showTake && (
-        <ModalOverlayGate>
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-10 backdrop-blur-sm">
-          <div className="w-full max-w-3xl rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                Take Attendance
-              </h2>
-              <button
-                type="button"
-                onClick={() => setShowTake(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Body */}
-            <form onSubmit={handleTakeSubmit}>
-              <div className="px-6 py-5">
-                {submitError && (
-                  <div className="mb-4 rounded-lg bg-error-50 px-4 py-3 text-sm text-error-600 dark:bg-error-500/10 dark:text-error-400">
-                    {submitError}
-                  </div>
-                )}
-
-                {/* Session Details */}
-                <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Class <span className="text-error-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={takeForm.classId}
-                      onChange={(e) => {
-                        setTakeForm((f) => ({ ...f, classId: e.target.value }));
-                        loadStudentsForClass(e.target.value);
-                      }}
-                      className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-transparent px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:focus:border-brand-500/40"
-                    >
-                      <option value="">Select class</option>
-                      {classes.map((c) => (
-                        <option key={c.id} value={String(c.id)}>
-                          {c.name} ({c.department.code})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <DateInput
-                    id="attendance-session-date"
-                    label={
-                      <>
-                        Date <span className="text-error-500">*</span>
-                      </>
-                    }
-                    labelClassName="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                    value={takeForm.date}
-                    onChange={(v) => setTakeForm((f) => ({ ...f, date: v }))}
-                    required
-                    inputClassName="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:focus:border-brand-500/40"
-                  />
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Shift <span className="text-error-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={takeForm.shift}
-                      onChange={(e) =>
-                        setTakeForm((f) => ({ ...f, shift: e.target.value }))
-                      }
-                      className="h-11 w-full appearance-none rounded-lg border border-gray-200 bg-transparent px-3 py-2.5 text-sm text-gray-800 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:focus:border-brand-500/40"
-                    >
-                      {SHIFTS.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Note
-                    </label>
-                    <input
-                      type="text"
-                      value={takeForm.note}
-                      onChange={(e) =>
-                        setTakeForm((f) => ({ ...f, note: e.target.value }))
-                      }
-                      placeholder="Optional note"
-                      className="h-11 w-full rounded-lg border border-gray-200 bg-transparent px-3 py-2.5 text-sm text-gray-800 outline-none placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/20 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-brand-500/40"
-                    />
-                  </div>
-                </div>
-
-                {/* Quick Actions */}
-                {students.length > 0 && (
-                  <div className="mb-3 flex items-center gap-2">
-                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                      Mark all:
-                    </span>
-                    {ATTENDANCE_STATUSES.map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => markAll(st)}
-                        className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-                          st === "Present"
-                            ? "bg-success-50 text-success-600 hover:bg-success-100 dark:bg-success-500/10 dark:text-success-400"
-                            : st === "Absent"
-                              ? "bg-error-50 text-error-600 hover:bg-error-100 dark:bg-error-500/10 dark:text-error-400"
-                              : st === "Late"
-                                ? "bg-warning-50 text-warning-600 hover:bg-warning-100 dark:bg-warning-500/10 dark:text-warning-400"
-                                : "bg-blue-light-50 text-blue-light-600 hover:bg-blue-light-100 dark:bg-blue-light-500/10 dark:text-blue-light-400"
-                        }`}
-                      >
-                        {st}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Students List */}
-                <div className="max-h-[45vh] min-w-0 overflow-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                  {loadingStudents ? (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-brand-500" />
-                    </div>
-                  ) : students.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-gray-400 dark:text-gray-500">
-                      {takeForm.classId
-                        ? "No admitted students found."
-                        : "Select a class to load students."}
-                    </div>
-                  ) : (
-                    <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-800">
-                      <thead className="bg-gray-50 dark:bg-white/3">
-                        <tr>
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Student
-                          </th>
-                          <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            ID
-                          </th>
-                          <th className="px-4 py-2.5 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                            Status
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {students.map((r) => (
-                          <tr
-                            key={r.studentId}
-                            className="transition-colors hover:bg-gray-50/50 dark:hover:bg-white/2"
-                          >
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2.5">
-                                {r.student.imageUrl ? (
-                                  <Image
-                                    src={r.student.imageUrl}
-                                    alt=""
-                                    width={32}
-                                    height={32}
-                                    className="h-8 w-8 rounded-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                                    {r.student.firstName.charAt(0)}
-                                    {r.student.lastName.charAt(0)}
-                                  </div>
-                                )}
-                                <span className="text-sm font-medium text-gray-800 dark:text-white/90">
-                                  {r.student.firstName} {r.student.lastName}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
-                                {r.student.studentId}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center justify-center gap-1">
-                                {ATTENDANCE_STATUSES.map((st) => (
-                                  <button
-                                    key={st}
-                                    type="button"
-                                    onClick={() =>
-                                      updateStudentStatus(r.studentId, st)
-                                    }
-                                    className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                                      r.status === st
-                                        ? st === "Present"
-                                          ? "bg-success-500 text-white shadow-sm"
-                                          : st === "Absent"
-                                            ? "bg-error-500 text-white shadow-sm"
-                                            : st === "Late"
-                                              ? "bg-warning-500 text-white shadow-sm"
-                                              : "bg-blue-light-500 text-white shadow-sm"
-                                        : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                                    }`}
-                                  >
-                                    {st.charAt(0)}
-                                  </button>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-
-                {/* Summary */}
-                {students.length > 0 && (
-                  <div className="mt-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                    <span>
-                      Total: <strong>{students.length}</strong>
-                    </span>
-                    <span className="text-success-600 dark:text-success-400">
-                      Present: {students.filter((r) => r.status === "Present").length}
-                    </span>
-                    <span className="text-error-600 dark:text-error-400">
-                      Absent: {students.filter((r) => r.status === "Absent").length}
-                    </span>
-                    <span className="text-warning-600 dark:text-warning-400">
-                      Late: {students.filter((r) => r.status === "Late").length}
-                    </span>
-                    <span className="text-blue-light-600 dark:text-blue-light-400">
-                      Excused: {students.filter((r) => r.status === "Excused").length}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowTake(false)}
-                  size="sm"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={submitting || students.length === 0}
-                  size="sm"
-                >
-                  {submitting ? "Saving..." : "Save Attendance"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-        </ModalOverlayGate>
-      )}
-
       {/* ───── View Session Detail Modal ───── */}
       {viewSession && (
         <ModalOverlayGate>
@@ -733,7 +396,8 @@ export default function AttendancePage() {
                   Attendance Details
                 </h2>
                 <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-                  {viewSession.class.name} &middot; {viewSession.class.department.code} &middot;{" "}
+                  {viewSession.class.name} &middot; {viewSession.class.department.code}
+                  {viewSession.course ? ` · ${viewSession.course.code}` : ""} &middot;{" "}
                   {new Date(viewSession.date).toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "long",

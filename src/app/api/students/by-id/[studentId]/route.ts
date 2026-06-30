@@ -19,19 +19,38 @@ export async function GET(req: NextRequest, ctx: RouteContext) {
     const student = await prisma.student.findUnique({
       where: { studentId: decodeURIComponent(studentId) },
       include: {
-        department: { select: { id: true, name: true, code: true, tuitionFee: true } },
+        department: { select: { id: true, name: true, code: true, registrationFee: true } },
         class: {
           select: {
             id: true,
             name: true,
-            semester: true,
-            year: true,
             department: { select: { code: true, name: true } },
           },
         },
         tuitionPayments: {
-          orderBy: [{ year: "desc" }, { semester: "asc" }],
-          select: { id: true, semester: true, year: true, amount: true, paidAt: true },
+          orderBy: [{ year: "desc" }, { paidAt: "desc" }],
+          select: {
+            id: true,
+            year: true,
+            amount: true,
+            paidAt: true,
+            paymentDate: true,
+            paymentMethod: true,
+            bank: { select: { code: true, name: true } },
+          },
+        },
+        monthlyFeePayments: {
+          orderBy: [{ year: "desc" }, { month: "desc" }, { paidAt: "desc" }],
+          select: {
+            id: true,
+            year: true,
+            month: true,
+            amount: true,
+            paidAt: true,
+            paymentDate: true,
+            paymentMethod: true,
+            bank: { select: { code: true, name: true } },
+          },
         },
       },
     });

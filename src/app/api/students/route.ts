@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
-import { getAuthUser } from "@/lib/auth";
+import {
+  applyDepartmentScope,
+  assertDepartmentAccess,
+  departmentScopeForbiddenResponse,
+  getDepartmentScope,
+  loadAuthContext,
+  parseDepartmentIdParam,
+} from "@/lib/department-access";
+import { computeRegistrationFeeAmount } from "@/lib/monthly-fee";
 import { prisma } from "@/lib/prisma";
 import { parsePaginationParams } from "@/lib/pagination";
 
@@ -34,8 +42,6 @@ const studentListInclude = {
     select: {
       id: true,
       name: true,
-      semester: true,
-      year: true,
       department: { select: { code: true } },
     },
   },
@@ -73,14 +79,20 @@ function buildStudentWhere(searchParams: URLSearchParams): Prisma.StudentWhereIn
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const { paginate, page, pageSize, skip } = parsePaginationParams(searchParams);
     const where = buildStudentWhere(searchParams);
+    const scope = getDepartmentScope(
+      ctx,
+      parseDepartmentIdParam(searchParams.get("departmentId"))
+    );
+    if (scope.kind === "none") return departmentScopeForbiddenResponse();
+    applyDepartmentScope(where, scope);
 
     if (paginate) {
       const [items, total] = await Promise.all([
@@ -114,8 +126,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await getAuthUser(req);
-    if (!auth) {
+    const ctx = await loadAuthContext(req);
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -164,6 +176,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const deptDenied = assertDepartmentAccess(ctx, parsedDeptId);
+    if (deptDenied) return deptDenied;
+
     if (parsedAyId !== null) {
       const ay = await prisma.academicYear.findUnique({
         where: { id: parsedAyId },
@@ -206,17 +221,13 @@ export async function POST(req: NextRequest) {
       studentId = await generateStudentId();
     }
 
-    // Initial balance = department tuition fee, adjusted by payment status
+    // Initial balance = department registration fee, adjusted by payment status
     const dept = await prisma.department.findUnique({
       where: { id: parsedDeptId },
-      select: { tuitionFee: true },
+      select: { registrationFee: true },
     });
-    const tuitionFee = dept?.tuitionFee ?? 0;
     const ps = ["Full Scholarship", "Half Scholar", "Fully Paid"].includes(paymentStatus) ? paymentStatus : "Fully Paid";
-    const initialBalance =
-      ps === "Full Scholarship" ? 0
-      : ps === "Half Scholar" ? tuitionFee * 0.5
-      : tuitionFee;
+    const initialBalance = computeRegistrationFeeAmount(dept?.registrationFee, ps);
 
     let feeVal: number | null = null;
     if (feeBody !== undefined && feeBody !== null && String(feeBody).trim() !== "") {
@@ -256,7 +267,7 @@ export async function POST(req: NextRequest) {
           select: { id: true, name: true, startYear: true, endYear: true },
         },
         class: {
-          select: { id: true, name: true, semester: true, year: true, department: { select: { code: true } } },
+          select: { id: true, name: true, department: { select: { code: true } } },
         },
       },
     });

@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       where: { id: sid },
       include: {
         department: { select: { id: true, name: true, code: true } },
-        class: { select: { id: true, name: true, semester: true, year: true, department: { select: { code: true } } } },
+        class: { select: { id: true, name: true, department: { select: { code: true } } } },
       },
     });
 
@@ -99,8 +99,6 @@ export async function POST(req: NextRequest) {
           select: {
             id: true,
             name: true,
-            semester: true,
-            year: true,
             department: { select: { code: true, name: true } },
           },
         },

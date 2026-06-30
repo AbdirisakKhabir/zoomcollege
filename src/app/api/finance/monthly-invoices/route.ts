@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     const includeDept = {
-      department: { select: { tuitionFee: true } },
+      department: { select: { registrationFee: true } },
     } as const;
 
     let students;
@@ -101,11 +101,7 @@ export async function POST(req: NextRequest) {
 
     await prisma.$transaction(async (tx) => {
       for (const s of students) {
-        const amount = computeMonthlyInvoiceAmount(
-          s.fee,
-          s.department.tuitionFee,
-          s.paymentStatus
-        );
+        const amount = computeMonthlyInvoiceAmount(s.fee, s.paymentStatus);
 
         if (amount <= 0) {
           skipped.push({
@@ -115,7 +111,7 @@ export async function POST(req: NextRequest) {
             reason:
               s.paymentStatus === "Full Scholarship"
                 ? "Full scholarship (no monthly charge)"
-                : "Fee amount is zero — set student Fee or department tuition",
+                : "Fee amount is zero — set student monthly fee",
           });
           continue;
         }

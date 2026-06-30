@@ -16,14 +16,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const departmentId = searchParams.get("departmentId");
     const classId = searchParams.get("classId");
-    const semester = searchParams.get("semester");
     const year = searchParams.get("year");
 
     let where: {
       course?: { departmentId?: number };
       courseId?: number;
       student?: { classId: number };
-      semester?: string;
       year?: number;
     } = {};
 
@@ -34,18 +32,15 @@ export async function GET(req: NextRequest) {
     if (classId) {
       const cls = await prisma.class.findUnique({
         where: { id: Number(classId) },
-        select: { departmentId: true, semester: true, year: true },
+        select: { departmentId: true },
       });
       if (cls) {
         where.student = { classId: Number(classId) };
         where.course = { departmentId: cls.departmentId };
-        where.semester = cls.semester;
-        where.year = cls.year;
         delete where.courseId;
       }
-    } else {
-      if (semester && semester !== "all") where.semester = semester;
-      if (year) where.year = Number(year);
+    } else if (year) {
+      where.year = Number(year);
     }
 
     const records = await prisma.examRecord.findMany({
@@ -74,10 +69,9 @@ export async function GET(req: NextRequest) {
           },
         },
       },
-      orderBy: [{ year: "desc" }, { semester: "asc" }, { student: { firstName: "asc" } }],
+      orderBy: [{ year: "desc" }, { student: { firstName: "asc" } }],
     });
 
-    // When filtering by class, enrich records with attendance (Present+Excused = 10% of exam)
     let enrichedRecords = records;
     if (classId) {
       const sessionIds = (

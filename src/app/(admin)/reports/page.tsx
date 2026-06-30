@@ -4,9 +4,11 @@ import Link from "next/link";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import { PageIcon, PieChartIcon, ListIcon, DollarLineIcon } from "@/icons";
 
+import { BRAND, pageTitle } from "@/lib/brand";
+
 export const metadata: Metadata = {
-  title: "Reports | Abaarso Tech University",
-  description: "Abaarso Tech University reports",
+  title: pageTitle("Reports"),
+  description: `${BRAND.name} reports`,
 };
 
 const reportLinks = [
@@ -16,9 +18,14 @@ const reportLinks = [
   { name: "Exam Report", path: "/reports/exam", icon: ListIcon, description: "View exam records by department and class with grade distribution" },
   { name: "Lecturer Report", path: "/reports/lecturers", icon: PageIcon, description: "View lecturers by department with courses and contact info" },
   { name: "HR Report", path: "/reports/hr", icon: PageIcon, description: "View employees by position with hire dates and status" },
-  { name: "Student Transactions", path: "/reports/student-transactions", icon: DollarLineIcon, description: "View student payment status by department and class" },
-  { name: "Class Revenue", path: "/reports/class-revenue", icon: DollarLineIcon, description: "View class revenue with paid/unpaid counts" },
-  { name: "Unpaid Students", path: "/reports/unpaid-students", icon: DollarLineIcon, description: "Generate list of students who have not paid for a specific semester and class" },
+  { name: "Students Report", path: "/reports/students-by-shift", icon: PageIcon, description: "All students by department with class schedule shifts" },
+  { name: "Absent Attendance", path: "/reports/absent-attendance", icon: PieChartIcon, description: "Students absent over a threshold — bulk mark inactive" },
+  { name: "Scholarship Report", path: "/reports/scholarship", icon: DollarLineIcon, description: "View students on full or half scholarship by department" },
+  { name: "Individual Student Report", path: "/reports/individual-student", icon: PageIcon, description: "View payment history and balance for a single student" },
+  { name: "Registration Fee Report", path: "/reports/registration-fee", icon: DollarLineIcon, description: "One-time registration fees — paid and unpaid by department and class" },
+  { name: "Paid Students", path: "/reports/paid-students", icon: DollarLineIcon, description: "Students who paid monthly fees in a selected month" },
+  { name: "Revenue Summary", path: "/reports/revenue-summary", icon: DollarLineIcon, description: "Target revenue vs amount collected per class" },
+  { name: "Unpaid Students", path: "/reports/unpaid-students", icon: DollarLineIcon, description: "Generate list of students who have not paid for a specific year and class" },
 ];
 
 export default function ReportsIndexPage() {

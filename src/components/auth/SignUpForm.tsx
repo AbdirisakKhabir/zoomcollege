@@ -9,6 +9,7 @@ import Link from "next/link";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { BRAND } from "@/lib/brand";
 import { redirectAfterAuth } from "@/lib/auth-client-redirect";
 
 export default function SignUpForm() {
@@ -86,7 +87,7 @@ export default function SignUpForm() {
   }
 
   return (
-    <div className="flex flex-col flex-1 lg:w-1/2 w-full overflow-y-auto no-scrollbar">
+    <div className="flex flex-col flex-1 lg:w-1/2 w-full overflow-y-auto font-sans no-scrollbar">
       <div className="w-full max-w-md sm:pt-10 mx-auto mb-5">
         <Link
           href="/"
@@ -101,8 +102,8 @@ export default function SignUpForm() {
           <div className="mb-5 sm:mb-8">
             <Link href="/" className="inline-block mb-5">
               <Image
-                src="/logo/era-pre-university.png"
-                alt="Era Pre-University"
+                src={BRAND.logoUrl}
+                alt={BRAND.logoAlt}
                 width={160}
                 height={44}
                 className="object-contain h-10 w-auto"
