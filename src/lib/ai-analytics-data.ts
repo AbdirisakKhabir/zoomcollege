@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { AuthContext } from "@/lib/department-access";
-import { parseReportDateParam } from "@/lib/report-date-range";
+import { defaultReportDateRange, parseReportDateParam } from "@/lib/report-date-range";
 import { prisma } from "@/lib/prisma";
 
 export type AiAnalysisTopic = "overview" | "finance" | "admission" | "attendance" | "examinations";
@@ -29,14 +29,28 @@ function departmentFilter(ctx: AuthContext): Prisma.DepartmentWhereInput {
   return { id: { in: ctx.allowedDepartmentIds }, isActive: true };
 }
 
+function resolveAnalysisDateRange(
+  dateFrom: string,
+  dateTo: string
+): { start: Date; end: Date } {
+  const fallback = defaultReportDateRange("year");
+  const from = dateFrom.trim() || fallback.dateFrom;
+  const to = dateTo.trim() || fallback.dateTo;
+  const start = parseReportDateParam(from);
+  const end = parseReportDateParam(to, true);
+  if (!start || !end) {
+    throw new Error("Invalid date range for analysis");
+  }
+  return { start, end };
+}
+
 export async function buildAnalyticsSnapshot(
   ctx: AuthContext,
   topic: AiAnalysisTopic,
   dateFrom: string,
   dateTo: string
 ): Promise<AnalyticsSnapshot> {
-  const start = parseReportDateParam(dateFrom);
-  const end = parseReportDateParam(dateTo, true);
+  const { start, end } = resolveAnalysisDateRange(dateFrom, dateTo);
   const studentWhere = studentDepartmentFilter(ctx);
   const deptWhere = departmentFilter(ctx);
 
